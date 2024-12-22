@@ -1,1 +1,57 @@
-test1234
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class RemoveColumnsFromCSV {
+
+    public static void main(String[] args) throws IOException {
+        // Input CSV file and column names file
+        String csvFilePath = "data.csv"; // Replace with your actual CSV file path
+        String columnsFilePath = "columns_to_remove.txt"; // Replace with your text file path
+        String outputFilePath = "output.csv"; // Output file path
+
+        // Read the column names to remove
+        Set<String> columnsToRemove = Files.lines(Paths.get(columnsFilePath))
+                                           .map(String::toLowerCase) // Make case-insensitive
+                                           .collect(Collectors.toSet());
+
+        // Read the CSV and process it
+        try (BufferedReader reader = new BufferedReader(new FileReader(csvFilePath));
+             BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath))) {
+
+            String headerLine = reader.readLine(); // Read header
+            if (headerLine == null) {
+                throw new IOException("CSV file is empty");
+            }
+
+            // Split headers and identify columns to keep
+            String[] headers = headerLine.split(",");
+            List<Integer> columnsToKeep = new ArrayList<>();
+            for (int i = 0; i < headers.length; i++) {
+                if (!columnsToRemove.contains(headers[i].toLowerCase())) {
+                    columnsToKeep.add(i);
+                }
+            }
+
+            // Write the new header
+            writer.write(columnsToKeep.stream()
+                                       .map(i -> headers[i])
+                                       .collect(Collectors.joining(",")));
+            writer.newLine();
+
+            // Process and write the remaining rows
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] values = line.split(",");
+                String filteredLine = columnsToKeep.stream()
+                                                   .map(i -> values[i])
+                                                   .collect(Collectors.joining(","));
+                writer.write(filteredLine);
+                writer.newLine();
+            }
+        }
+
+        System.out.println("Output file written to: " + outputFilePath);
+    }
+}
