@@ -3,55 +3,55 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class RemoveColumnsFromCSV {
+public class FilterColumnsInCSV {
 
     public static void main(String[] args) throws IOException {
-        // Input CSV file and column names file
-        String csvFilePath = "data.csv"; // Replace with your actual CSV file path
-        String columnsFilePath = "columns_to_remove.txt"; // Replace with your text file path
-        String outputFilePath = "output.csv"; // Output file path
+        // File paths
+        String csvFilePath = "data.csv"; // Replace with your CSV file path
+        String txtFilePath = "columns_to_keep.txt"; // Replace with your text file path
+        String outputFilePath = "filtered_output.csv"; // Output CSV file
 
-        // Read the column names to remove
-        Set<String> columnsToRemove = Files.lines(Paths.get(columnsFilePath))
-                                           .map(String::toLowerCase) // Make case-insensitive
-                                           .collect(Collectors.toSet());
+        // Read columns to keep from the text file (case-insensitive)
+        Set<String> columnsToKeep = Files.lines(Paths.get(txtFilePath))
+                                         .map(String::toLowerCase)
+                                         .collect(Collectors.toSet());
 
-        // Read the CSV and process it
+        // Read the CSV file
         try (BufferedReader reader = new BufferedReader(new FileReader(csvFilePath));
              BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath))) {
 
-            String headerLine = reader.readLine(); // Read header
+            String headerLine = reader.readLine();
             if (headerLine == null) {
                 throw new IOException("CSV file is empty");
             }
 
-            // Split headers and identify columns to keep
+            // Split header and identify columns to retain
             String[] headers = headerLine.split(",");
-            List<Integer> columnsToKeep = new ArrayList<>();
+            List<Integer> columnsToRetain = new ArrayList<>();
             for (int i = 0; i < headers.length; i++) {
-                if (!columnsToRemove.contains(headers[i].toLowerCase())) {
-                    columnsToKeep.add(i);
+                if (columnsToKeep.contains(headers[i].toLowerCase())) {
+                    columnsToRetain.add(i);
                 }
             }
 
             // Write the new header
-            writer.write(columnsToKeep.stream()
-                                       .map(i -> headers[i])
-                                       .collect(Collectors.joining(",")));
+            writer.write(columnsToRetain.stream()
+                                        .map(i -> headers[i])
+                                        .collect(Collectors.joining(",")));
             writer.newLine();
 
-            // Process and write the remaining rows
+            // Write the filtered rows
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] values = line.split(",");
-                String filteredLine = columnsToKeep.stream()
-                                                   .map(i -> values[i])
-                                                   .collect(Collectors.joining(","));
+                String filteredLine = columnsToRetain.stream()
+                                                     .map(i -> values[i])
+                                                     .collect(Collectors.joining(","));
                 writer.write(filteredLine);
                 writer.newLine();
             }
         }
 
-        System.out.println("Output file written to: " + outputFilePath);
+        System.out.println("Filtered CSV file written to: " + outputFilePath);
     }
 }
