@@ -1,57 +1,33 @@
 import java.io.*;
-import java.nio.file.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class FilterColumnsInCSV {
+public class FilterCSV {
+    public static void main(String[] args) {
+        // Input file paths
+        String txtFilePath = "headers.txt"; // Path to the text file with the list of headers
+        String csvFilePath = "fileWithData.csv"; // Path to the CSV file
+        String outputFilePath = "filteredData.csv"; // Output file path
 
-    public static void main(String[] args) throws IOException {
-        // File paths
-        String csvFilePath = "data.csv"; // Replace with your CSV file path
-        String txtFilePath = "columns_to_keep.txt"; // Replace with your text file path
-        String outputFilePath = "filtered_output.csv"; // Output CSV file
+        try {
+            // Read the headers from the text file into a Set
+            Set<String> requiredHeaders = new HashSet<>(readLinesFromFile(txtFilePath));
 
-        // Read columns to keep from the text file (case-insensitive)
-        Set<String> columnsToKeep = Files.lines(Paths.get(txtFilePath))
-                                         .map(String::toLowerCase)
-                                         .collect(Collectors.toSet());
+            // Read the CSV file and process it
+            filterCSVByHeaders(csvFilePath, outputFilePath, requiredHeaders);
 
-        // Read the CSV file
-        try (BufferedReader reader = new BufferedReader(new FileReader(csvFilePath));
-             BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath))) {
-
-            String headerLine = reader.readLine();
-            if (headerLine == null) {
-                throw new IOException("CSV file is empty");
-            }
-
-            // Split header and identify columns to retain
-            String[] headers = headerLine.split(",");
-            List<Integer> columnsToRetain = new ArrayList<>();
-            for (int i = 0; i < headers.length; i++) {
-                if (columnsToKeep.contains(headers[i].toLowerCase())) {
-                    columnsToRetain.add(i);
-                }
-            }
-
-            // Write the new header
-            writer.write(columnsToRetain.stream()
-                                        .map(i -> headers[i])
-                                        .collect(Collectors.joining(",")));
-            writer.newLine();
-
-            // Write the filtered rows
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] values = line.split(",");
-                String filteredLine = columnsToRetain.stream()
-                                                     .map(i -> values[i])
-                                                     .collect(Collectors.joining(","));
-                writer.write(filteredLine);
-                writer.newLine();
-            }
+            System.out.println("Filtered CSV created: " + outputFilePath);
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            e.printStackTrace();
         }
-
-        System.out.println("Filtered CSV file written to: " + outputFilePath);
     }
-}
+
+    // Method to read lines from a file
+    public static List<String> readLinesFromFile(String filePath) throws IOException {
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            return br.lines().collect(Collectors.toList());
+        }
+    }
+
+    // Method to filter the CSV by headers and write the filtered data to a new fi
