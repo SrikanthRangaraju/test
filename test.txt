@@ -30,4 +30,51 @@ public class FilterCSV {
         }
     }
 
-    // Method to filter the CSV by headers and write the filtered data to a new fi
+    // Method to filter the CSV by headers and write the filtered data to a new file
+    public static void filterCSVByHeaders(String inputCsvPath, String outputCsvPath, Set<String> requiredHeaders) throws IOException {
+        try (BufferedReader br = new BufferedReader(new FileReader(inputCsvPath));
+             PrintWriter pw = new PrintWriter(new FileWriter(outputCsvPath))) {
+
+            // Read the header line from the CSV
+            String headerLine = br.readLine();
+            if (headerLine == null) {
+                throw new IOException("CSV file is empty");
+            }
+
+            // Split headers and map to their indexes (lowercase for case-insensitive matching)
+            String[] headers = headerLine.split(",");
+            Map<String, Integer> headerIndexMap = new HashMap<>();
+            for (int i = 0; i < headers.length; i++) {
+                headerIndexMap.put(headers[i].trim().toLowerCase(), i);
+            }
+
+            // Determine which columns to keep
+            List<Integer> columnIndexes = new ArrayList<>();
+            for (String header : requiredHeaders) {
+                if (headerIndexMap.containsKey(header.toLowerCase())) {
+                    columnIndexes.add(headerIndexMap.get(header.toLowerCase()));
+                }
+            }
+
+            if (columnIndexes.isEmpty()) {
+                throw new IOException("No matching headers found in the CSV file");
+            }
+
+            // Write the filtered headers to the new file
+            List<String> filteredHeaders = columnIndexes.stream()
+                    .map(index -> headers[index])
+                    .collect(Collectors.toList());
+            pw.println(String.join(",", filteredHeaders));
+
+            // Write the filtered rows to the new file
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(",");
+                List<String> filteredValues = columnIndexes.stream()
+                        .map(index -> index < values.length ? values[index] : "") // Handle missing values
+                        .collect(Collectors.toList());
+                pw.println(String.join(",", filteredValues));
+            }
+        }
+    }
+}
