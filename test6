@@ -7,7 +7,7 @@ import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ReplaceCSVHeaders {
+public class ReplaceCSVHeadersCaseInsensitive {
     public static void main(String[] args) {
         // Input and output file paths
         String inputFilePath = "input.csv";  // Path to your input CSV file
@@ -17,7 +17,7 @@ public class ReplaceCSVHeaders {
         Map<String, String> columnReplacements = new HashMap<>();
         columnReplacements.put("ABC1", "ABC9");
         columnReplacements.put("XYZ4", "ZXCV");
-        columnReplacements.put("NOT_IN_CSV", "NEW_COLUMN"); // Example of a non-existent column
+        columnReplacements.put("NOT_IN_CSV", "NEW_COLUMN");
 
         try (
             Reader reader = new FileReader(inputFilePath);
@@ -29,17 +29,24 @@ public class ReplaceCSVHeaders {
             Map<String, Integer> originalHeaders = csvParser.getHeaderMap();
             Map<String, Integer> newHeaders = new HashMap<>();
 
+            // Create a lowercase map of the replacements for case-insensitive comparison
+            Map<String, String> lowerCaseReplacements = new HashMap<>();
+            for (Map.Entry<String, String> entry : columnReplacements.entrySet()) {
+                lowerCaseReplacements.put(entry.getKey().toLowerCase(), entry.getValue());
+            }
+
             // Check for missing columns and log warnings
-            for (String key : columnReplacements.keySet()) {
-                if (!originalHeaders.containsKey(key)) {
-                    System.out.println("Warning: Column '" + key + "' not found in the input CSV file.");
+            for (String header : originalHeaders.keySet()) {
+                if (!lowerCaseReplacements.containsKey(header.toLowerCase())) {
+                    System.out.println("Warning: Column '" + header + "' not found in replacements (case insensitive).");
                 }
             }
 
-            // Replace header names as specified in the map
+            // Replace header names case-insensitively
             for (String header : originalHeaders.keySet()) {
-                if (columnReplacements.containsKey(header)) {
-                    newHeaders.put(columnReplacements.get(header), originalHeaders.get(header));
+                String lowerHeader = header.toLowerCase();
+                if (lowerCaseReplacements.containsKey(lowerHeader)) {
+                    newHeaders.put(lowerCaseReplacements.get(lowerHeader), originalHeaders.get(header));
                 } else {
                     newHeaders.put(header, originalHeaders.get(header));
                 }
@@ -62,4 +69,3 @@ public class ReplaceCSVHeaders {
         }
     }
 }
-
