@@ -4,68 +4,71 @@ import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 
 import java.io.*;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 
-public class ReplaceCSVHeadersWithValues {
+public class FilterCSVByHeadersCaseSensitive {
     public static void main(String[] args) {
-        // Input and output file paths
-        String inputFilePath = "input.csv";  // Path to your input CSV file
-        String outputFilePath = "output.csv";  // Path to save the updated CSV file
+        // File paths
+        String inputCSVFile = "filewithdata1.csv";  // Input CSV file path
+        String headersFile = "headers.txt";        // File containing headers to keep
+        String outputCSVFile = "filewithdata2.csv"; // Output CSV file path
 
-        // Map of column replacements (key: old column name, value: new column name)
-        Map<String, String> columnReplacements = new HashMap<>();
-        columnReplacements.put("ABC1", "ABC9");
-        columnReplacements.put("XYZ4", "ZXCV");
-        columnReplacements.put("NOT_IN_CSV", "NEW_COLUMN");
+        try {
+            // Read headers from the .txt file
+            Set<String> headersToKeep = readHeadersFromTxt(headersFile);
 
-        int headersChangedCount = 0; // Counter for changed headers
+            // Parse the input CSV file
+            try (
+                Reader reader = new FileReader(inputCSVFile);
+                CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+                Writer writer = new FileWriter(outputCSVFile);
+                CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT)
+            ) {
+                // Get original headers and filter them based on the headers to keep
+                Map<String, Integer> originalHeaders = csvParser.getHeaderMap();
+                List<String> filteredHeaders = new ArrayList<>();
 
-        try (
-            Reader reader = new FileReader(inputFilePath);
-            Writer writer = new FileWriter(outputFilePath);
-            CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
-            CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT)
-        ) {
-            // Get original header map
-            Map<String, Integer> originalHeaders = csvParser.getHeaderMap();
-            Map<String, String> newHeaders = new LinkedHashMap<>(); // Maintain order of headers
-
-            // Create a lowercase map of the replacements for case-insensitive comparison
-            Map<String, String> lowerCaseReplacements = new HashMap<>();
-            for (Map.Entry<String, String> entry : columnReplacements.entrySet()) {
-                lowerCaseReplacements.put(entry.getKey().toLowerCase(), entry.getValue());
-            }
-
-            // Log missing columns and replace headers case-insensitively
-            for (String header : originalHeaders.keySet()) {
-                String lowerHeader = header.toLowerCase();
-                if (lowerCaseReplacements.containsKey(lowerHeader)) {
-                    String newHeader = lowerCaseReplacements.get(lowerHeader);
-                    newHeaders.put(header, newHeader); // Map original header to new header
-                    System.out.println("Successfully changed header from \"" + header + "\" to \"" + newHeader + "\".");
-                    headersChangedCount++;
-                } else {
-                    newHeaders.put(header, header); // Keep the original header if no replacement
+                for (String header : originalHeaders.keySet()) {
+                    if (headersToKeep.contains(header)) { // Case-sensitive comparison
+                        filteredHeaders.add(header);
+                    }
                 }
-            }
 
-            // Write the updated headers
-            csvPrinter.printRecord(newHeaders.values());
+                // Write the filtered headers to the output CSV
+                csvPrinter.printRecord(filteredHeaders);
 
-            // Write the data rows with the updated header names
-            for (CSVRecord record : csvParser) {
-                for (String originalHeader : newHeaders.keySet()) {
-                    csvPrinter.print(record.get(originalHeader));
+                // Write the data rows, filtering by the selected headers
+                for (CSVRecord record : csvParser) {
+                    for (String header : filteredHeaders) {
+                        csvPrinter.print(record.get(header));
+                    }
+                    csvPrinter.println();
                 }
-                csvPrinter.println();
+
+                System.out.println("Filtered CSV saved to " + outputCSVFile);
             }
 
-            System.out.println("Total number of headers changed: " + headersChangedCount);
-            System.out.println("CSV column headers updated and saved to " + outputFilePath);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
+    // Helper method to read headers from the .txt file (case-sensitive)
+    private static Set<String> readHeadersFromTxt(String headersFile) throws IOException {
+        Set<String> headersSet = new HashSet<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(headersFile))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                headersSet.add(line.trim()); // Keep headers as-is for case-sensitive matching
+            }
+        }
+        return headersSet;
+    }
 }
+
+//
+<dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-csv</artifactId>
+    <version>1.10.0</version>
+</dependency>
