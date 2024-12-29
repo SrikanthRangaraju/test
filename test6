@@ -7,7 +7,7 @@ import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ReplaceCSVHeadersCaseInsensitive {
+public class ReplaceCSVHeadersWithDetailedLogging {
     public static void main(String[] args) {
         // Input and output file paths
         String inputFilePath = "input.csv";  // Path to your input CSV file
@@ -18,6 +18,8 @@ public class ReplaceCSVHeadersCaseInsensitive {
         columnReplacements.put("ABC1", "ABC9");
         columnReplacements.put("XYZ4", "ZXCV");
         columnReplacements.put("NOT_IN_CSV", "NEW_COLUMN");
+
+        int headersChangedCount = 0; // Counter for changed headers
 
         try (
             Reader reader = new FileReader(inputFilePath);
@@ -35,10 +37,10 @@ public class ReplaceCSVHeadersCaseInsensitive {
                 lowerCaseReplacements.put(entry.getKey().toLowerCase(), entry.getValue());
             }
 
-            // Check for missing columns and log warnings
-            for (String header : originalHeaders.keySet()) {
-                if (!lowerCaseReplacements.containsKey(header.toLowerCase())) {
-                    System.out.println("Warning: Column '" + header + "' not found in replacements (case insensitive).");
+            // Log missing columns
+            for (String key : columnReplacements.keySet()) {
+                if (!originalHeaders.keySet().stream().anyMatch(header -> header.equalsIgnoreCase(key))) {
+                    System.out.println("Warning: Column '" + key + "' not found in the input CSV file.");
                 }
             }
 
@@ -46,7 +48,10 @@ public class ReplaceCSVHeadersCaseInsensitive {
             for (String header : originalHeaders.keySet()) {
                 String lowerHeader = header.toLowerCase();
                 if (lowerCaseReplacements.containsKey(lowerHeader)) {
-                    newHeaders.put(lowerCaseReplacements.get(lowerHeader), originalHeaders.get(header));
+                    String newHeader = lowerCaseReplacements.get(lowerHeader);
+                    newHeaders.put(newHeader, originalHeaders.get(header));
+                    System.out.println("Successfully changed header from \"" + header + "\" to \"" + newHeader + "\".");
+                    headersChangedCount++; // Increment the count
                 } else {
                     newHeaders.put(header, originalHeaders.get(header));
                 }
@@ -63,6 +68,7 @@ public class ReplaceCSVHeadersCaseInsensitive {
                 csvPrinter.println();
             }
 
+            System.out.println("Total number of headers changed: " + headersChangedCount);
             System.out.println("CSV column headers updated and saved to " + outputFilePath);
         } catch (IOException e) {
             e.printStackTrace();
