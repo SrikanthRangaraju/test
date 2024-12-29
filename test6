@@ -1,1 +1,65 @@
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVPrinter;
+import org.apache.commons.csv.CSVRecord;
+
+import java.io.*;
+import java.util.HashMap;
+import java.util.Map;
+
+public class ReplaceCSVHeaders {
+    public static void main(String[] args) {
+        // Input and output file paths
+        String inputFilePath = "input.csv";  // Path to your input CSV file
+        String outputFilePath = "output.csv";  // Path to save the updated CSV file
+
+        // Map of column replacements (key: old column name, value: new column name)
+        Map<String, String> columnReplacements = new HashMap<>();
+        columnReplacements.put("ABC1", "ABC9");
+        columnReplacements.put("XYZ4", "ZXCV");
+        columnReplacements.put("NOT_IN_CSV", "NEW_COLUMN"); // Example of a non-existent column
+
+        try (
+            Reader reader = new FileReader(inputFilePath);
+            Writer writer = new FileWriter(outputFilePath);
+            CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT)
+        ) {
+            // Get original header map
+            Map<String, Integer> originalHeaders = csvParser.getHeaderMap();
+            Map<String, Integer> newHeaders = new HashMap<>();
+
+            // Check for missing columns and log warnings
+            for (String key : columnReplacements.keySet()) {
+                if (!originalHeaders.containsKey(key)) {
+                    System.out.println("Warning: Column '" + key + "' not found in the input CSV file.");
+                }
+            }
+
+            // Replace header names as specified in the map
+            for (String header : originalHeaders.keySet()) {
+                if (columnReplacements.containsKey(header)) {
+                    newHeaders.put(columnReplacements.get(header), originalHeaders.get(header));
+                } else {
+                    newHeaders.put(header, originalHeaders.get(header));
+                }
+            }
+
+            // Write the new headers
+            csvPrinter.printRecord(newHeaders.keySet());
+
+            // Write the data rows
+            for (CSVRecord record : csvParser) {
+                for (String newHeader : newHeaders.keySet()) {
+                    csvPrinter.print(record.get(originalHeaders.getOrDefault(newHeader, -1)));
+                }
+                csvPrinter.println();
+            }
+
+            System.out.println("CSV column headers updated and saved to " + outputFilePath);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
 
