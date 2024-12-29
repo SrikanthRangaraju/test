@@ -12,7 +12,17 @@ import java.util.Set;
 public class FilterCSVColumns {
 
     public static void main(String[] args) {
-        // ... (rest of the main method is the same)
+        String csvFile = "File1.csv"; // Input CSV file
+        String headersFile = "headers.txt"; // File containing headers to keep
+        String outputFile = "File2.csv"; // Output CSV file
+
+        try {
+            Set<String> targetHeaders = readHeadersFromFile(headersFile);
+            filterAndWriteCSV(csvFile, targetHeaders, outputFile);
+            System.out.println("CSV filtering complete. Output written to " + outputFile);
+        } catch (IOException e) {
+            System.err.println("Error processing files: " + e.getMessage());
+        }
     }
 
     private static Set<String> readHeadersFromFile(String headersFile) throws IOException {
@@ -20,7 +30,7 @@ public class FilterCSVColumns {
         try (BufferedReader br = new BufferedReader(new FileReader(headersFile))) {
             String line;
             while ((line = br.readLine()) != null) {
-                headers.add(line.trim().toUpperCase(Locale.ROOT)); // Convert to uppercase for case-insensitive comparison
+                headers.add(line.trim().toUpperCase(Locale.ROOT)); // Case-insensitive storage
             }
         }
         return headers;
@@ -41,28 +51,29 @@ public class FilterCSVColumns {
             List<String> outputHeaders = new ArrayList<>();
 
             for (int i = 0; i < allHeaders.size(); i++) {
-                if (targetHeaders.contains(allHeaders.get(i).trim().toUpperCase(Locale.ROOT))) { // Case-insensitive comparison here
+                if (targetHeaders.contains(allHeaders.get(i).trim().toUpperCase(Locale.ROOT))) { // Case-insensitive comparison
                     targetIndices.add(i);
-                    outputHeaders.add(allHeaders.get(i)); // Keep original case for output header
+                    outputHeaders.add(allHeaders.get(i)); // Keep original case for output
                 }
             }
-             if(outputHeaders.isEmpty()){
+
+            if (outputHeaders.isEmpty()) {
                 System.out.println("No matching headers found in the CSV file.");
                 return;
             }
 
-            writer.write(String.join(",", outputHeaders) + "\n");
+            writer.write(String.join(",", outputHeaders) + "\n"); // Write output headers
 
             String line;
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
                 List<String> outputValues = new ArrayList<>();
                 for (int index : targetIndices) {
-                    if (index < values.length) {
+                    if (index < values.length) { // Check for index out of bounds
                         outputValues.add(values[index]);
                     }
                 }
-                writer.write(String.join(",", outputValues) + "\n");
+                writer.write(String.join(",", outputValues) + "\n"); // Write output values
             }
         }
     }
