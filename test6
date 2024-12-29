@@ -5,9 +5,10 @@ import org.apache.commons.csv.CSVRecord;
 
 import java.io.*;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class ReplaceCSVHeadersWithDetailedLogging {
+public class ReplaceCSVHeadersWithValues {
     public static void main(String[] args) {
         // Input and output file paths
         String inputFilePath = "input.csv";  // Path to your input CSV file
@@ -29,7 +30,7 @@ public class ReplaceCSVHeadersWithDetailedLogging {
         ) {
             // Get original header map
             Map<String, Integer> originalHeaders = csvParser.getHeaderMap();
-            Map<String, Integer> newHeaders = new HashMap<>();
+            Map<String, String> newHeaders = new LinkedHashMap<>(); // Maintain order of headers
 
             // Create a lowercase map of the replacements for case-insensitive comparison
             Map<String, String> lowerCaseReplacements = new HashMap<>();
@@ -37,33 +38,26 @@ public class ReplaceCSVHeadersWithDetailedLogging {
                 lowerCaseReplacements.put(entry.getKey().toLowerCase(), entry.getValue());
             }
 
-            // Log missing columns
-            for (String key : columnReplacements.keySet()) {
-                if (!originalHeaders.keySet().stream().anyMatch(header -> header.equalsIgnoreCase(key))) {
-                    System.out.println("Warning: Column '" + key + "' not found in the input CSV file.");
-                }
-            }
-
-            // Replace header names case-insensitively
+            // Log missing columns and replace headers case-insensitively
             for (String header : originalHeaders.keySet()) {
                 String lowerHeader = header.toLowerCase();
                 if (lowerCaseReplacements.containsKey(lowerHeader)) {
                     String newHeader = lowerCaseReplacements.get(lowerHeader);
-                    newHeaders.put(newHeader, originalHeaders.get(header));
+                    newHeaders.put(header, newHeader); // Map original header to new header
                     System.out.println("Successfully changed header from \"" + header + "\" to \"" + newHeader + "\".");
-                    headersChangedCount++; // Increment the count
+                    headersChangedCount++;
                 } else {
-                    newHeaders.put(header, originalHeaders.get(header));
+                    newHeaders.put(header, header); // Keep the original header if no replacement
                 }
             }
 
-            // Write the new headers
-            csvPrinter.printRecord(newHeaders.keySet());
+            // Write the updated headers
+            csvPrinter.printRecord(newHeaders.values());
 
-            // Write the data rows
+            // Write the data rows with the updated header names
             for (CSVRecord record : csvParser) {
-                for (String newHeader : newHeaders.keySet()) {
-                    csvPrinter.print(record.get(originalHeaders.getOrDefault(newHeader, -1)));
+                for (String originalHeader : newHeaders.keySet()) {
+                    csvPrinter.print(record.get(originalHeader));
                 }
                 csvPrinter.println();
             }
