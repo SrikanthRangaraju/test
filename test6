@@ -1,80 +1,38 @@
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.io.*;
+import java.util.*;
+import java.nio.file.*;
 
-public class FilterCSVColumns {
-
+public class CommonIdsFinder {
     public static void main(String[] args) {
-        String csvFile = "File1.csv"; // Input CSV file
-        String headersFile = "headers.txt"; // File containing headers to keep
-        String outputFile = "File2.csv"; // Output CSV file
+        // File paths
+        String masterFilePath = "master.txt";
+        String childFilePath = "child.txt";
+        String outputFilePath = "updatedfile.txt";
+
+        // Use a Set to store IDs for efficient lookup
+        Set<String> masterIds = new HashSet<>();
+        Set<String> commonIds = new HashSet<>();
 
         try {
-            Set<String> targetHeaders = readHeadersFromFile(headersFile);
-            filterAndWriteCSV(csvFile, targetHeaders, outputFile);
-            System.out.println("CSV filtering complete. Output written to " + outputFile);
+            // Read master.txt
+            List<String> masterLines = Files.readAllLines(Paths.get(masterFilePath));
+            masterIds.addAll(masterLines);
+
+            // Read child.txt and find common IDs
+            List<String> childLines = Files.readAllLines(Paths.get(childFilePath));
+            for (String id : childLines) {
+                if (masterIds.contains(id)) {
+                    commonIds.add(id);
+                }
+            }
+
+            // Write common IDs to updatedfile.txt
+            Files.write(Paths.get(outputFilePath), commonIds);
+
+            System.out.println("Common IDs have been written to " + outputFilePath);
+
         } catch (IOException e) {
-            System.err.println("Error processing files: " + e.getMessage());
-        }
-    }
-
-    private static Set<String> readHeadersFromFile(String headersFile) throws IOException {
-        Set<String> headers = new HashSet<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(headersFile))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                headers.add(line.trim().toUpperCase(Locale.ROOT)); // Case-insensitive storage
-            }
-        }
-        return headers;
-    }
-
-    private static void filterAndWriteCSV(String csvFile, Set<String> targetHeaders, String outputFile) throws IOException {
-        try (BufferedReader br = new BufferedReader(new FileReader(csvFile));
-             FileWriter writer = new FileWriter(outputFile)) {
-
-            String headerLine = br.readLine();
-            if (headerLine == null) {
-                System.out.println("Input CSV file is empty.");
-                return;
-            }
-
-            List<String> allHeaders = Arrays.asList(headerLine.split(","));
-            List<Integer> targetIndices = new ArrayList<>();
-            List<String> outputHeaders = new ArrayList<>();
-
-            for (int i = 0; i < allHeaders.size(); i++) {
-                if (targetHeaders.contains(allHeaders.get(i).trim().toUpperCase(Locale.ROOT))) { // Case-insensitive comparison
-                    targetIndices.add(i);
-                    outputHeaders.add(allHeaders.get(i)); // Keep original case for output
-                }
-            }
-
-            if (outputHeaders.isEmpty()) {
-                System.out.println("No matching headers found in the CSV file.");
-                return;
-            }
-
-            writer.write(String.join(",", outputHeaders) + "\n"); // Write output headers
-
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] values = line.split(",");
-                List<String> outputValues = new ArrayList<>();
-                for (int index : targetIndices) {
-                    if (index < values.length) { // Check for index out of bounds
-                        outputValues.add(values[index]);
-                    }
-                }
-                writer.write(String.join(",", outputValues) + "\n"); // Write output values
-            }
+            System.err.println("An error occurred: " + e.getMessage());
         }
     }
 }
