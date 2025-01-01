@@ -34,15 +34,23 @@ public class AdviserOutputProcessor {
         List<Map<String, String>> data = new ArrayList<>();
         List<String> headers = new ArrayList<>();
 
-        // Using Files.newBufferedReader for better file handling
-        try (BufferedReader br = Files.newBufferedReader(Paths.get(filePath))) {
+        // Check if the file exists
+        Path path = Paths.get(filePath);
+        if (!Files.exists(path)) {
+            throw new FileNotFoundException("File not found: " + filePath);
+        }
+
+        try (BufferedReader br = Files.newBufferedReader(path)) {
             String line;
             int row = 0;
+
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
                 if (row == 0) {
+                    // First row contains headers
                     headers.addAll(Arrays.asList(values));
                 } else {
+                    // Subsequent rows contain data
                     Map<String, String> rowData = new LinkedHashMap<>();
                     for (int i = 0; i < values.length; i++) {
                         if (!headers.get(i).equalsIgnoreCase("CANTIDADCHEQUES") &&
@@ -55,7 +63,10 @@ public class AdviserOutputProcessor {
                 }
                 row++;
             }
+        } catch (IOException e) {
+            throw new IOException("Error reading the file: " + filePath, e);
         }
+
         return data;
     }
 
@@ -64,9 +75,16 @@ public class AdviserOutputProcessor {
         List<Map<String, String>> data = new ArrayList<>();
         List<String> headers = new ArrayList<>();
 
-        try (BufferedReader br = Files.newBufferedReader(Paths.get(filePath))) {
+        // Check if the file exists
+        Path path = Paths.get(filePath);
+        if (!Files.exists(path)) {
+            throw new FileNotFoundException("File not found: " + filePath);
+        }
+
+        try (BufferedReader br = Files.newBufferedReader(path)) {
             String line;
             int row = 0;
+
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
                 if (row == 0) {
@@ -80,7 +98,10 @@ public class AdviserOutputProcessor {
                 }
                 row++;
             }
+        } catch (IOException e) {
+            throw new IOException("Error reading the file: " + filePath, e);
         }
+
         return data;
     }
 
@@ -108,7 +129,6 @@ public class AdviserOutputProcessor {
 
     // Method to compare actual vs expected and write detailed output
     private void writeDifferencesDetailed(List<Map<String, String>> actualData, List<Map<String, String>> expectedData, String differenceCsvPath, String matchSummaryPath, List<String> headers) throws IOException {
-        List<Map<String, String>> differences = new ArrayList<>();
         Map<String, Integer> mismatchCounts = new LinkedHashMap<>();
         Map<String, Integer> totalCounts = new LinkedHashMap<>();
 
