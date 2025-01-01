@@ -34,7 +34,8 @@ public class AdviserOutputProcessor {
         List<Map<String, String>> data = new ArrayList<>();
         List<String> headers = new ArrayList<>();
 
-        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+        // Using Files.newBufferedReader for better file handling
+        try (BufferedReader br = Files.newBufferedReader(Paths.get(filePath))) {
             String line;
             int row = 0;
             while ((line = br.readLine()) != null) {
@@ -63,7 +64,7 @@ public class AdviserOutputProcessor {
         List<Map<String, String>> data = new ArrayList<>();
         List<String> headers = new ArrayList<>();
 
-        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+        try (BufferedReader br = Files.newBufferedReader(Paths.get(filePath))) {
             String line;
             int row = 0;
             while ((line = br.readLine()) != null) {
