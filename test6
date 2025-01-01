@@ -1,38 +1,176 @@
 import java.io.*;
-import java.util.*;
 import java.nio.file.*;
+import java.util.*;
 
-public class CommonIdsFinder {
-    public static void main(String[] args) {
-        // File paths
-        String masterFilePath = "master.txt";
-        String childFilePath = "child.txt";
-        String outputFilePath = "updatedfile.txt";
+public class AdviserOutputProcessor {
 
-        // Use a Set to store IDs for efficient lookup
-        Set<String> masterIds = new HashSet<>();
-        Set<String> commonIds = new HashSet<>();
+    @Then("Then read the adviser output, sort and run the stats")
+    public void sortAndRunStats() throws Exception {
+        // Hardcoded file paths
+        String actualFilePath = "./actual-output/actual.csv";  // Path to the actual file
+        String expectedFilePath = "./expected-output-folder/expected.csv";  // Path to the expected file
+        String differenceFolder = "./diff-values-folder/";
 
-        try {
-            // Read master.txt
-            List<String> masterLines = Files.readAllLines(Paths.get(masterFilePath));
-            masterIds.addAll(masterLines);
+        // Output file paths
+        String differencesCsvPath = differenceFolder + "differences.csv";
+        String matchSummaryPath = differenceFolder + "match_summary.txt";
 
-            // Read child.txt and find common IDs
-            List<String> childLines = Files.readAllLines(Paths.get(childFilePath));
-            for (String id : childLines) {
-                if (masterIds.contains(id)) {
-                    commonIds.add(id);
+        // Step 1: Read and clean actual.csv
+        List<Map<String, String>> actualData = readAndCleanCSV(actualFilePath);
+
+        // Step 2: Read expected.csv (unchanged)
+        List<Map<String, String>> expectedData = readCSV(expectedFilePath);
+
+        // Step 3: Sort actual.csv columns
+        List<String> sortedHeaders = getSortedHeaders(new ArrayList<>(actualData.get(0).keySet()));
+        actualData = sortColumns(actualData, sortedHeaders);
+
+        // Step 4: Compare processed actual.csv with expected.csv
+        writeDifferencesDetailed(actualData, expectedData, differencesCsvPath, matchSummaryPath, sortedHeaders);
+    }
+
+    // Helper method to read and clean the actual file
+    private List<Map<String, String>> readAndCleanCSV(String filePath) throws IOException {
+        List<Map<String, String>> data = new ArrayList<>();
+        List<String> headers = new ArrayList<>();
+
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            int row = 0;
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(",");
+                if (row == 0) {
+                    headers.addAll(Arrays.asList(values));
+                } else {
+                    Map<String, String> rowData = new LinkedHashMap<>();
+                    for (int i = 0; i < values.length; i++) {
+                        if (!headers.get(i).equalsIgnoreCase("CANTIDADCHEQUES") &&
+                            !headers.get(i).equalsIgnoreCase("FECHAPUBLICACION") &&
+                            !headers.get(i).equalsIgnoreCase("MOTIVO")) {
+                            rowData.put(headers.get(i), values[i]);
+                        }
+                    }
+                    data.add(rowData);
                 }
+                row++;
             }
+        }
+        return data;
+    }
 
-            // Write common IDs to updatedfile.txt
-            Files.write(Paths.get(outputFilePath), commonIds);
+    // Helper method to read expected file (unchanged)
+    private List<Map<String, String>> readCSV(String filePath) throws IOException {
+        List<Map<String, String>> data = new ArrayList<>();
+        List<String> headers = new ArrayList<>();
 
-            System.out.println("Common IDs have been written to " + outputFilePath);
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            int row = 0;
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(",");
+                if (row == 0) {
+                    headers.addAll(Arrays.asList(values));
+                } else {
+                    Map<String, String> rowData = new LinkedHashMap<>();
+                    for (int i = 0; i < values.length; i++) {
+                        rowData.put(headers.get(i), values[i]);
+                    }
+                    data.add(rowData);
+                }
+                row++;
+            }
+        }
+        return data;
+    }
 
-        } catch (IOException e) {
-            System.err.println("An error occurred: " + e.getMessage());
+    // Helper method to get sorted headers
+    private List<String> getSortedHeaders(List<String> headers) {
+        List<String> sortedHeaders = new ArrayList<>(headers);
+        sortedHeaders.remove("RUT"); // Keep "RUT" as the first column
+        Collections.sort(sortedHeaders);
+        sortedHeaders.add(0, "RUT"); // Add "RUT" back at the beginning
+        return sortedHeaders;
+    }
+
+    // Helper method to sort columns in a data set
+    private List<Map<String, String>> sortColumns(List<Map<String, String>> data, List<String> sortedHeaders) {
+        List<Map<String, String>> sortedData = new ArrayList<>();
+        for (Map<String, String> row : data) {
+            Map<String, String> sortedRow = new LinkedHashMap<>();
+            for (String header : sortedHeaders) {
+                sortedRow.put(header, row.get(header));
+            }
+            sortedData.add(sortedRow);
+        }
+        return sortedData;
+    }
+
+    // Method to compare actual vs expected and write detailed output
+    private void writeDifferencesDetailed(List<Map<String, String>> actualData, List<Map<String, String>> expectedData, String differenceCsvPath, String matchSummaryPath, List<String> headers) throws IOException {
+        List<Map<String, String>> differences = new ArrayList<>();
+        Map<String, Integer> mismatchCounts = new LinkedHashMap<>();
+        Map<String, Integer> totalCounts = new LinkedHashMap<>();
+
+        // Initialize counts
+        for (String header : headers) {
+            mismatchCounts.put(header, 0);
+            totalCounts.put(header, actualData.size());
+        }
+
+        try (BufferedWriter csvWriter = new BufferedWriter(new FileWriter(differenceCsvPath))) {
+            // Write headers to CSV
+            csvWriter.write(String.join(",", headers));
+            csvWriter.newLine();
+
+            // Compare row by row
+            for (int i = 0; i < actualData.size(); i++) {
+                Map<String, String> actualRow = actualData.get(i);
+                Map<String, String> expectedRow = expectedData.get(i);
+                List<String> csvRow = new ArrayList<>();
+
+                for (String header : headers) {
+                    String actualValue = actualRow.get(header);
+                    String expectedValue = expectedRow.get(header);
+
+                    if (actualValue != null && actualValue.equals(expectedValue)) {
+                        csvRow.add("Match");
+                    } else {
+                        csvRow.add("Actual: " + actualValue + ", Expected: " + expectedValue);
+                        mismatchCounts.put(header, mismatchCounts.get(header) + 1);
+                    }
+                }
+                csvWriter.write(String.join(",", csvRow));
+                csvWriter.newLine();
+            }
+        }
+
+        // Write summary
+        try (BufferedWriter summaryWriter = new BufferedWriter(new FileWriter(matchSummaryPath))) {
+            for (String header : headers) {
+                int total = totalCounts.get(header);
+                int mismatches = mismatchCounts.get(header);
+                int matches = total - mismatches;
+                double matchPercentage = (matches / (double) total) * 100;
+
+                if (matchPercentage == 100) {
+                    summaryWriter.write("100% match - " + header);
+                } else if (matchPercentage >= 99) {
+                    summaryWriter.write("99% match - " + header);
+                } else if (matchPercentage >= 90) {
+                    summaryWriter.write("90-98% match - " + header);
+                } else if (matchPercentage >= 80) {
+                    summaryWriter.write("80-89% match - " + header);
+                } else if (matchPercentage >= 70) {
+                    summaryWriter.write("70-79% match - " + header);
+                } else if (matchPercentage >= 60) {
+                    summaryWriter.write("60-69% match - " + header);
+                } else if (matchPercentage >= 50) {
+                    summaryWriter.write("50-59% match - " + header);
+                } else {
+                    summaryWriter.write("Less than 49% - " + header);
+                }
+                summaryWriter.newLine();
+            }
         }
     }
 }
