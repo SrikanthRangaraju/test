@@ -45,10 +45,23 @@ public class AdviserOutputProcessor {
             int row = 0;
 
             while ((line = br.readLine()) != null) {
+                line = line.trim(); // Remove extra spaces
+                if (line.isEmpty()) {
+                    continue; // Skip empty lines
+                }
+
                 String[] values = line.split(",");
                 if (row == 0) {
+                    // First row contains headers
                     headers.addAll(Arrays.asList(values));
                 } else {
+                    // Ensure the row has the same number of columns as the header
+                    if (values.length != headers.size()) {
+                        System.err.println("Row " + row + " is inconsistent. Expected " + headers.size() + " columns but found " + values.length + ".");
+                        continue; // Skip this row
+                    }
+
+                    // Process row data
                     Map<String, String> rowData = new LinkedHashMap<>();
                     for (int i = 0; i < values.length; i++) {
                         if (!headers.get(i).equalsIgnoreCase("CANTIDADCHEQUES") &&
