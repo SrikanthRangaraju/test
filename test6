@@ -1,76 +1,104 @@
 import java.io.*;
 import java.util.*;
 
-public class RenameAndSortHeaders {
+public class ExtractAndSortColumns {
     public static void main(String[] args) {
-        String inputFilePath = "input.csv";  // Replace with your input file path
-        String outputFilePath = "output.csv"; // Replace with your output file path
+        String inputCsvFilePath = "input.csv";  // Replace with your input CSV file path
+        String headersFilePath = "headers.txt"; // Replace with your text file containing column headers
+        String outputCsvFilePath = "output.csv"; // Replace with your desired output CSV file path
 
-        // Define header mappings (old header to new header)
-        Map<String, String> headerMappings = new HashMap<>();
-        headerMappings.put("FECHADEFUNCION", "FESTA"); // Add more mappings as needed
+        try {
+            // Read the desired headers from the text file
+            List<String> desiredHeaders = readHeadersFromFile(headersFilePath);
 
-        try (BufferedReader br = new BufferedReader(new FileReader(inputFilePath));
-             BufferedWriter bw = new BufferedWriter(new FileWriter(outputFilePath))) {
+            // Read the input CSV file
+            try (BufferedReader br = new BufferedReader(new FileReader(inputCsvFilePath));
+                 BufferedWriter bw = new BufferedWriter(new FileWriter(outputCsvFilePath))) {
 
-            // Read the first line (headers)
-            String headerLine = br.readLine();
-            if (headerLine != null) {
-                String[] updatedHeaders = renameAndSortHeaders(headerLine, headerMappings);
-                bw.write(String.join(",", updatedHeaders));
+                // Read and parse the header line from the CSV file
+                String headerLine = br.readLine();
+                if (headerLine == null) {
+                    throw new IOException("Input CSV file is empty!");
+                }
+
+                String[] headers = headerLine.split(",");
+                List<Integer> columnIndices = getColumnIndices(headers, desiredHeaders);
+
+                // Get selected headers and sort them
+                List<String> selectedHeaders = getHeadersByIndices(headers, columnIndices);
+                Collections.sort(selectedHeaders, String.CASE_INSENSITIVE_ORDER); // Sort headers alphabetically
+
+                // Write the sorted headers to the output CSV file
+                bw.write(String.join(",", selectedHeaders));
                 bw.newLine();
 
-                // Sort data columns based on the new header order
-                List<Integer> columnOrder = getColumnOrder(headerLine, updatedHeaders);
-                String line;
-                while ((line = br.readLine()) != null) {
-                    bw.write(sortRowByColumns(line, columnOrder));
+                // Sort the column indices based on the sorted headers
+                List<Integer> sortedColumnIndices = getSortedIndices(headers, selectedHeaders);
+
+                // Write the corresponding rows to the output CSV file
+                String row;
+                while ((row = br.readLine()) != null) {
+                    String[] rowValues = row.split(",");
+                    List<String> selectedValues = getValuesByIndices(rowValues, sortedColumnIndices);
+                    bw.write(String.join(",", selectedValues));
                     bw.newLine();
                 }
+
+                System.out.println("Selected columns extracted, sorted, and written to output CSV file!");
             }
-
-            System.out.println("Headers renamed and sorted successfully!");
-
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static String[] renameAndSortHeaders(String headerLine, Map<String, String> mappings) {
-        // Split headers by comma
-        String[] headers = headerLine.split(",");
-        for (int i = 0; i < headers.length; i++) {
-            String header = headers[i].replace("\"", "").trim(); // Remove quotes for comparison
-            if (mappings.containsKey(header)) {
-                headers[i] = "\"" + mappings.get(header) + "\""; // Replace with new header
+    private static List<String> readHeadersFromFile(String filePath) throws IOException {
+        List<String> headers = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                headers.add(line.trim());
             }
         }
-        Arrays.sort(headers, String.CASE_INSENSITIVE_ORDER); // Sort headers alphabetically
         return headers;
     }
 
-    private static List<Integer> getColumnOrder(String originalHeaderLine, String[] sortedHeaders) {
-        String[] originalHeaders = originalHeaderLine.split(",");
-        Map<String, Integer> originalHeaderIndex = new HashMap<>();
-
-        for (int i = 0; i < originalHeaders.length; i++) {
-            originalHeaderIndex.put(originalHeaders[i].replace("\"", "").trim(), i);
+    private static List<Integer> getColumnIndices(String[] headers, List<String> desiredHeaders) {
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < headers.length; i++) {
+            String header = headers[i].replace("\"", "").trim(); // Remove quotes for comparison
+            if (desiredHeaders.contains(header)) {
+                indices.add(i);
+            }
         }
-
-        List<Integer> columnOrder = new ArrayList<>();
-        for (String sortedHeader : sortedHeaders) {
-            String cleanHeader = sortedHeader.replace("\"", "").trim();
-            columnOrder.add(originalHeaderIndex.get(cleanHeader));
-        }
-        return columnOrder;
+        return indices;
     }
 
-    private static String sortRowByColumns(String row, List<Integer> columnOrder) {
-        String[] cells = row.split(",");
-        String[] sortedRow = new String[cells.length];
-        for (int i = 0; i < columnOrder.size(); i++) {
-            sortedRow[i] = cells[columnOrder.get(i)];
+    private static List<String> getHeadersByIndices(String[] headers, List<Integer> indices) {
+        List<String> selectedHeaders = new ArrayList<>();
+        for (int index : indices) {
+            selectedHeaders.add(headers[index]);
         }
-        return String.join(",", sortedRow);
+        return selectedHeaders;
+    }
+
+    private static List<Integer> getSortedIndices(String[] headers, List<String> sortedHeaders) {
+        Map<String, Integer> headerToIndexMap = new HashMap<>();
+        for (int i = 0; i < headers.length; i++) {
+            headerToIndexMap.put(headers[i].replace("\"", "").trim(), i);
+        }
+
+        List<Integer> sortedIndices = new ArrayList<>();
+        for (String header : sortedHeaders) {
+            sortedIndices.add(headerToIndexMap.get(header.replace("\"", "").trim()));
+        }
+        return sortedIndices;
+    }
+
+    private static List<String> getValuesByIndices(String[] rowValues, List<Integer> indices) {
+        List<String> selectedValues = new ArrayList<>();
+        for (int index : indices) {
+            selectedValues.add(rowValues[index]);
+        }
+        return selectedValues;
     }
 }
