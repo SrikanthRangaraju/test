@@ -1,15 +1,47 @@
-public class StringFormatter {
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class CsvHeaderToUpperCase {
     public static void main(String[] args) {
-        String input = "[15/01/2023,15/12/2022,15/11/2022]";
-        String result = formatString(input);
-        System.out.println(result);
-    }
+        String inputFilePath = "input.csv"; // Path to the input CSV file
+        String outputFilePath = "output.csv"; // Path to save the output CSV file
 
-    public static String formatString(String input) {
-        // Remove the square brackets
-        input = input.substring(1, input.length() - 1);
+        try {
+            List<String> lines = new ArrayList<>();
+            BufferedReader reader = new BufferedReader(new FileReader(inputFilePath));
+            BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath));
 
-        // Replace commas with vertical bars
-        return input.replace(",", "|");
+            String line;
+            boolean isFirstLine = true;
+
+            while ((line = reader.readLine()) != null) {
+                if (isFirstLine) {
+                    // Process the header line
+                    String[] headers = line.split(",");
+                    for (int i = 0; i < headers.length; i++) {
+                        headers[i] = headers[i].toUpperCase(); // Convert header to uppercase
+                    }
+                    lines.add(String.join(",", headers));
+                    isFirstLine = false;
+                } else {
+                    // Add the rest of the lines as is
+                    lines.add(line);
+                }
+            }
+
+            // Write the lines to the output file
+            for (String outputLine : lines) {
+                writer.write(outputLine);
+                writer.newLine();
+            }
+
+            reader.close();
+            writer.close();
+            System.out.println("CSV headers converted to uppercase and saved to: " + outputFilePath);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
