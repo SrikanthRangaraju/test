@@ -1,212 +1,23 @@
 import java.io.*;
-import java.nio.file.*;
 import java.util.*;
 
-public class AdviserOutputProcessor {
+public class ConvertDelimiter {
+    public static void main(String[] args) throws IOException {
+        String inputFilePath = "input.csv";
+        String outputFilePath = "output.csv";
 
-    @Then("Then read the adviser output, sort and run the stats")
-    public void sortAndRunStats() throws Exception {
-        // Hardcoded file paths
-        String actualFilePath = "./actual-output/actual.csv";  // Path to the actual file
-        String expectedFilePath = "./expected-output-folder/expected.csv";  // Path to the expected file
-        String differenceFolder = "./diff-values-folder/";
+        try (BufferedReader br = new BufferedReader(new FileReader(inputFilePath));
+             BufferedWriter bw = new BufferedWriter(new FileWriter(outputFilePath))) {
 
-        // Output file paths
-        String differencesCsvPath = differenceFolder + "differences.csv";
-        String matchSummaryPath = differenceFolder + "match_summary.txt";
-
-        // Step 1: Read and clean actual.csv
-        List<Map<String, String>> actualData = readAndCleanCSV(actualFilePath);
-
-        // Step 2: Read expected.csv (unchanged)
-        List<Map<String, String>> expectedData = readCSV(expectedFilePath);
-
-        // Step 3: Sort actual.csv columns
-        List<String> sortedHeaders = getSortedHeaders(new ArrayList<>(actualData.get(0).keySet()));
-        actualData = sortColumns(actualData, sortedHeaders);
-
-        // Step 4: Compare processed actual.csv with expected.csv
-        writeDifferencesDetailed(actualData, expectedData, differencesCsvPath, matchSummaryPath, sortedHeaders);
-    }
-
-    // Helper method to read and clean the actual file
-    private List<Map<String, String>> readAndCleanCSV(String filePath) throws IOException {
-        List<Map<String, String>> data = new ArrayList<>();
-        List<String> headers = new ArrayList<>();
-
-        // Check if the file exists
-        Path path = Paths.get(filePath);
-        if (!Files.exists(path)) {
-            throw new FileNotFoundException("File not found: " + filePath);
-        }
-
-        try (BufferedReader br = Files.newBufferedReader(path)) {
             String line;
-            int row = 0;
-
             while ((line = br.readLine()) != null) {
-                line = line.trim(); // Remove extra spaces
-                if (line.isEmpty()) {
-                    continue; // Skip empty lines
-                }
-
-                String[] values = line.split(",");
-                if (row == 0) {
-                    // First row contains headers
-                    headers.addAll(Arrays.asList(values));
-                } else {
-                    // Ensure the row has the same number of columns as the header
-                    if (values.length != headers.size()) {
-                        System.err.println("Row " + row + " is inconsistent. Expected " + headers.size() + " columns but found " + values.length + ".");
-                        continue; // Skip this row
-                    }
-
-                    // Process row data
-                    Map<String, String> rowData = new LinkedHashMap<>();
-                    for (int i = 0; i < values.length; i++) {
-                        if (!headers.get(i).equalsIgnoreCase("CANTIDADCHEQUES") &&
-                            !headers.get(i).equalsIgnoreCase("FECHAPUBLICACION") &&
-                            !headers.get(i).equalsIgnoreCase("MOTIVO")) {
-                            rowData.put(headers.get(i), values[i]);
-                        }
-                    }
-                    data.add(rowData);
-                }
-                row++;
+                // Replace commas with semicolons
+                String newLine = line.replace(",", ";");
+                bw.write(newLine);
+                bw.newLine();
             }
         }
 
-        return data;
-    }
-
-    // Helper method to read expected file (unchanged)
-    private List<Map<String, String>> readCSV(String filePath) throws IOException {
-        List<Map<String, String>> data = new ArrayList<>();
-        List<String> headers = new ArrayList<>();
-
-        // Check if the file exists
-        Path path = Paths.get(filePath);
-        if (!Files.exists(path)) {
-            throw new FileNotFoundException("File not found: " + filePath);
-        }
-
-        try (BufferedReader br = Files.newBufferedReader(path)) {
-            String line;
-            int row = 0;
-
-            while ((line = br.readLine()) != null) {
-                String[] values = line.split(",");
-                if (row == 0) {
-                    headers.addAll(Arrays.asList(values));
-                } else {
-                    Map<String, String> rowData = new LinkedHashMap<>();
-                    for (int i = 0; i < values.length; i++) {
-                        rowData.put(headers.get(i), values[i]);
-                    }
-                    data.add(rowData);
-                }
-                row++;
-            }
-        }
-
-        return data;
-    }
-
-    // Helper method to get sorted headers
-    private List<String> getSortedHeaders(List<String> headers) {
-        List<String> sortedHeaders = new ArrayList<>(headers);
-        sortedHeaders.remove("RUT"); // Keep "RUT" as the first column
-        Collections.sort(sortedHeaders);
-        sortedHeaders.add(0, "RUT"); // Add "RUT" back at the beginning
-        return sortedHeaders;
-    }
-
-    // Helper method to sort columns in a data set
-    private List<Map<String, String>> sortColumns(List<Map<String, String>> data, List<String> sortedHeaders) {
-        List<Map<String, String>> sortedData = new ArrayList<>();
-        for (Map<String, String> row : data) {
-            Map<String, String> sortedRow = new LinkedHashMap<>();
-            for (String header : sortedHeaders) {
-                sortedRow.put(header, row.get(header));
-            }
-            sortedData.add(sortedRow);
-        }
-        return sortedData;
-    }
-
-    // Method to compare actual vs expected and write detailed output
-    private void writeDifferencesDetailed(List<Map<String, String>> actualData, List<Map<String, String>> expectedData, String differenceCsvPath, String matchSummaryPath, List<String> headers) throws IOException {
-        Map<String, Integer> mismatchCounts = new LinkedHashMap<>();
-        Map<String, Integer> totalCounts = new LinkedHashMap<>();
-
-        // Initialize counts
-        for (String header : headers) {
-            mismatchCounts.put(header, 0);
-            totalCounts.put(header, actualData.size());
-        }
-
-        // Ensure directories exist
-        Path differencePath = Paths.get(differenceCsvPath).getParent();
-        Path summaryPath = Paths.get(matchSummaryPath).getParent();
-
-        if (!Files.exists(differencePath)) Files.createDirectories(differencePath);
-        if (!Files.exists(summaryPath)) Files.createDirectories(summaryPath);
-
-        // Write differences to CSV
-        try (BufferedWriter csvWriter = Files.newBufferedWriter(Paths.get(differenceCsvPath))) {
-            // Write headers to CSV
-            csvWriter.write(String.join(",", headers));
-            csvWriter.newLine();
-
-            // Compare row by row
-            for (int i = 0; i < actualData.size(); i++) {
-                Map<String, String> actualRow = actualData.get(i);
-                Map<String, String> expectedRow = expectedData.get(i);
-                List<String> csvRow = new ArrayList<>();
-
-                for (String header : headers) {
-                    String actualValue = actualRow.get(header);
-                    String expectedValue = expectedRow.get(header);
-
-                    if (actualValue != null && actualValue.equals(expectedValue)) {
-                        csvRow.add("Match");
-                    } else {
-                        csvRow.add("Actual: " + actualValue + ", Expected: " + expectedValue);
-                        mismatchCounts.put(header, mismatchCounts.get(header) + 1);
-                    }
-                }
-                csvWriter.write(String.join(",", csvRow));
-                csvWriter.newLine();
-            }
-        }
-
-        // Write summary
-        try (BufferedWriter summaryWriter = Files.newBufferedWriter(Paths.get(matchSummaryPath))) {
-            for (String header : headers) {
-                int total = totalCounts.get(header);
-                int mismatches = mismatchCounts.get(header);
-                int matches = total - mismatches;
-                double matchPercentage = (matches / (double) total) * 100;
-
-                if (matchPercentage == 100) {
-                    summaryWriter.write("100% match - " + header);
-                } else if (matchPercentage >= 99) {
-                    summaryWriter.write("99% match - " + header);
-                } else if (matchPercentage >= 90) {
-                    summaryWriter.write("90-98% match - " + header);
-                } else if (matchPercentage >= 80) {
-                    summaryWriter.write("80-89% match - " + header);
-                } else if (matchPercentage >= 70) {
-                    summaryWriter.write("70-79% match - " + header);
-                } else if (matchPercentage >= 60) {
-                    summaryWriter.write("60-69% match - " + header);
-                } else if (matchPercentage >= 50) {
-                    summaryWriter.write("50-59% match - " + header);
-                } else {
-                    summaryWriter.write("Less than 49% - " + header);
-                }
-                summaryWriter.newLine();
-            }
-        }
+        System.out.println("File saved with semicolon delimiter: " + outputFilePath);
     }
 }
