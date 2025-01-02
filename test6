@@ -1,10 +1,14 @@
 import java.io.*;
-import java.nio.file.*;
+import java.util.*;
 
-public class UpperCaseHeaders {
+public class RenameHeaders {
     public static void main(String[] args) {
         String inputFilePath = "input.csv";  // Replace with your input file path
         String outputFilePath = "output.csv"; // Replace with your output file path
+
+        // Define header mappings (old header to new header)
+        Map<String, String> headerMappings = new HashMap<>();
+        headerMappings.put("FECHADEFUNCION", "FESTA"); // Add more mappings as needed
 
         try (BufferedReader br = new BufferedReader(new FileReader(inputFilePath));
              BufferedWriter bw = new BufferedWriter(new FileWriter(outputFilePath))) {
@@ -12,9 +16,8 @@ public class UpperCaseHeaders {
             // Read the first line (headers)
             String headerLine = br.readLine();
             if (headerLine != null) {
-                // Convert headers to uppercase while keeping double quotes
-                String upperCaseHeaders = convertHeadersToUpperCase(headerLine);
-                bw.write(upperCaseHeaders);
+                String updatedHeaders = renameHeaders(headerLine, headerMappings);
+                bw.write(updatedHeaders);
                 bw.newLine();
             }
 
@@ -25,18 +28,21 @@ public class UpperCaseHeaders {
                 bw.newLine();
             }
 
-            System.out.println("Headers converted to uppercase successfully!");
+            System.out.println("Headers renamed successfully!");
 
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static String convertHeadersToUpperCase(String headerLine) {
-        // Split headers by comma while preserving double quotes
+    private static String renameHeaders(String headerLine, Map<String, String> mappings) {
+        // Split headers by comma
         String[] headers = headerLine.split(",");
         for (int i = 0; i < headers.length; i++) {
-            headers[i] = headers[i].toUpperCase(); // Convert to uppercase
+            String header = headers[i].replace("\"", "").trim(); // Remove quotes for comparison
+            if (mappings.containsKey(header)) {
+                headers[i] = "\"" + mappings.get(header) + "\""; // Replace with new header
+            }
         }
         return String.join(",", headers);
     }
