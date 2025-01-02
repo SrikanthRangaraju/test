@@ -1,7 +1,7 @@
 import java.io.*;
 import java.util.*;
 
-public class RenameHeaders {
+public class RenameAndSortHeaders {
     public static void main(String[] args) {
         String inputFilePath = "input.csv";  // Replace with your input file path
         String outputFilePath = "output.csv"; // Replace with your output file path
@@ -16,26 +16,27 @@ public class RenameHeaders {
             // Read the first line (headers)
             String headerLine = br.readLine();
             if (headerLine != null) {
-                String updatedHeaders = renameHeaders(headerLine, headerMappings);
-                bw.write(updatedHeaders);
+                String[] updatedHeaders = renameAndSortHeaders(headerLine, headerMappings);
+                bw.write(String.join(",", updatedHeaders));
                 bw.newLine();
+
+                // Sort data columns based on the new header order
+                List<Integer> columnOrder = getColumnOrder(headerLine, updatedHeaders);
+                String line;
+                while ((line = br.readLine()) != null) {
+                    bw.write(sortRowByColumns(line, columnOrder));
+                    bw.newLine();
+                }
             }
 
-            // Copy the rest of the file as is
-            String line;
-            while ((line = br.readLine()) != null) {
-                bw.write(line);
-                bw.newLine();
-            }
-
-            System.out.println("Headers renamed successfully!");
+            System.out.println("Headers renamed and sorted successfully!");
 
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static String renameHeaders(String headerLine, Map<String, String> mappings) {
+    private static String[] renameAndSortHeaders(String headerLine, Map<String, String> mappings) {
         // Split headers by comma
         String[] headers = headerLine.split(",");
         for (int i = 0; i < headers.length; i++) {
@@ -44,6 +45,32 @@ public class RenameHeaders {
                 headers[i] = "\"" + mappings.get(header) + "\""; // Replace with new header
             }
         }
-        return String.join(",", headers);
+        Arrays.sort(headers, String.CASE_INSENSITIVE_ORDER); // Sort headers alphabetically
+        return headers;
+    }
+
+    private static List<Integer> getColumnOrder(String originalHeaderLine, String[] sortedHeaders) {
+        String[] originalHeaders = originalHeaderLine.split(",");
+        Map<String, Integer> originalHeaderIndex = new HashMap<>();
+
+        for (int i = 0; i < originalHeaders.length; i++) {
+            originalHeaderIndex.put(originalHeaders[i].replace("\"", "").trim(), i);
+        }
+
+        List<Integer> columnOrder = new ArrayList<>();
+        for (String sortedHeader : sortedHeaders) {
+            String cleanHeader = sortedHeader.replace("\"", "").trim();
+            columnOrder.add(originalHeaderIndex.get(cleanHeader));
+        }
+        return columnOrder;
+    }
+
+    private static String sortRowByColumns(String row, List<Integer> columnOrder) {
+        String[] cells = row.split(",");
+        String[] sortedRow = new String[cells.length];
+        for (int i = 0; i < columnOrder.size(); i++) {
+            sortedRow[i] = cells[columnOrder.get(i)];
+        }
+        return String.join(",", sortedRow);
     }
 }
