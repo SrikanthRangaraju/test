@@ -1,23 +1,15 @@
-import java.io.*;
-import java.util.*;
+public class StringFormatter {
+    public static void main(String[] args) {
+        String input = "[15/01/2023,15/12/2022,15/11/2022]";
+        String result = formatString(input);
+        System.out.println(result);
+    }
 
-public class ConvertDelimiter {
-    public static void main(String[] args) throws IOException {
-        String inputFilePath = "input.csv";
-        String outputFilePath = "output.csv";
+    public static String formatString(String input) {
+        // Remove the square brackets
+        input = input.substring(1, input.length() - 1);
 
-        try (BufferedReader br = new BufferedReader(new FileReader(inputFilePath));
-             BufferedWriter bw = new BufferedWriter(new FileWriter(outputFilePath))) {
-
-            String line;
-            while ((line = br.readLine()) != null) {
-                // Replace commas with semicolons
-                String newLine = line.replace(",", ";");
-                bw.write(newLine);
-                bw.newLine();
-            }
-        }
-
-        System.out.println("File saved with semicolon delimiter: " + outputFilePath);
+        // Replace commas with vertical bars
+        return input.replace(",", "|");
     }
 }
