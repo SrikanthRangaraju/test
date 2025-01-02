@@ -1,47 +1,43 @@
 import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.file.*;
 
-public class CsvHeaderToUpperCase {
+public class UpperCaseHeaders {
     public static void main(String[] args) {
-        String inputFilePath = "input.csv"; // Path to the input CSV file
-        String outputFilePath = "output.csv"; // Path to save the output CSV file
+        String inputFilePath = "input.csv";  // Replace with your input file path
+        String outputFilePath = "output.csv"; // Replace with your output file path
 
-        try {
-            List<String> lines = new ArrayList<>();
-            BufferedReader reader = new BufferedReader(new FileReader(inputFilePath));
-            BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath));
+        try (BufferedReader br = new BufferedReader(new FileReader(inputFilePath));
+             BufferedWriter bw = new BufferedWriter(new FileWriter(outputFilePath))) {
 
+            // Read the first line (headers)
+            String headerLine = br.readLine();
+            if (headerLine != null) {
+                // Convert headers to uppercase while keeping double quotes
+                String upperCaseHeaders = convertHeadersToUpperCase(headerLine);
+                bw.write(upperCaseHeaders);
+                bw.newLine();
+            }
+
+            // Copy the rest of the file as is
             String line;
-            boolean isFirstLine = true;
-
-            while ((line = reader.readLine()) != null) {
-                if (isFirstLine) {
-                    // Process the header line
-                    String[] headers = line.split(",");
-                    for (int i = 0; i < headers.length; i++) {
-                        headers[i] = headers[i].toUpperCase(); // Convert header to uppercase
-                    }
-                    lines.add(String.join(",", headers));
-                    isFirstLine = false;
-                } else {
-                    // Add the rest of the lines as is
-                    lines.add(line);
-                }
+            while ((line = br.readLine()) != null) {
+                bw.write(line);
+                bw.newLine();
             }
 
-            // Write the lines to the output file
-            for (String outputLine : lines) {
-                writer.write(outputLine);
-                writer.newLine();
-            }
-
-            reader.close();
-            writer.close();
-            System.out.println("CSV headers converted to uppercase and saved to: " + outputFilePath);
+            System.out.println("Headers converted to uppercase successfully!");
 
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private static String convertHeadersToUpperCase(String headerLine) {
+        // Split headers by comma while preserving double quotes
+        String[] headers = headerLine.split(",");
+        for (int i = 0; i < headers.length; i++) {
+            headers[i] = headers[i].toUpperCase(); // Convert to uppercase
+        }
+        return String.join(",", headers);
     }
 }
