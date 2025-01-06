@@ -1,12 +1,11 @@
 import java.io.*;
-import java.util.*;
 
 public class CleanCSVSpecificColumn {
 
     public static void main(String[] args) {
         String inputFilePath = "path/to/input.csv"; // Replace with your actual file path
         String outputFilePath = "path/to/output.csv"; // Replace with your desired output file path
-        String targetColumn = "marks"; // Replace with the column name you want to clean
+        String targetColumn = "EMISOR"; // Replace with the column name you want to clean
 
         try {
             // Read the input file
@@ -22,10 +21,14 @@ public class CleanCSVSpecificColumn {
             outputContent.append(headerLine).append("\n");
 
             // Get column index for the target column
-            String[] headers = headerLine.split(",");
+            String[] headers = headerLine.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)"); // Handles quoted headers
+            for (int i = 0; i < headers.length; i++) {
+                headers[i] = headers[i].replaceAll("^\"|\"$", "").trim(); // Remove surrounding quotes and trim
+            }
+
             int columnIndex = -1;
             for (int i = 0; i < headers.length; i++) {
-                if (headers[i].trim().equalsIgnoreCase(targetColumn)) {
+                if (headers[i].equalsIgnoreCase(targetColumn)) {
                     columnIndex = i;
                     break;
                 }
@@ -39,10 +42,12 @@ public class CleanCSVSpecificColumn {
             // Process each row
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] values = line.split(",", -1); // Use -1 to preserve empty values
+                String[] values = line.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1); // Handle quoted fields
                 if (columnIndex < values.length) {
-                    // Clean the specific column value by reducing spaces to one
-                    values[columnIndex] = values[columnIndex].replaceAll("\\s{2,}", " ").replace(" | ", "|");
+                    // Clean the specific column value by reducing spaces to one and cleaning up spaces around '|'
+                    values[columnIndex] = values[columnIndex]
+                            .replaceAll("\\s{2,}", " ") // Replace multiple spaces with a single space
+                            .replace(" | ", "|"); // Remove spaces around the pipe symbol
                 }
                 outputContent.append(String.join(",", values)).append("\n");
             }
