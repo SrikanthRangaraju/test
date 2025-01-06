@@ -1,96 +1,176 @@
 import java.io.*;
 import java.util.*;
 
-public class CleanSpecificColumnsInCSV {
+public class CompareCSVWithColumnPercentage {
 
     public static void main(String[] args) {
-        String inputCsvFilePath = "path/to/input.csv"; // Path to the input CSV file
-        String outputCsvFilePath = "path/to/output.csv"; // Path to save the updated CSV file
-        String columnsToCleanFilePath = "path/to/columns_to_clean.txt"; // Path to the .txt file with column names to clean
+        String masterFilePath = "path/to/MasterFile.csv"; // Path to MasterFile.csv
+        String childFilePath = "path/to/ChildFile.csv"; // Path to ChildFile.csv
+        String diffOutputPath = "path/to/diffoutput.csv"; // Path to save the diff output
+        String percentageOutputPath = "path/to/match_percentage.txt"; // Path to save the percentage match file
 
         try {
-            // Read the list of columns to clean from the file
-            List<String> columnsToClean = readColumnsFromFile(columnsToCleanFilePath);
+            // Read the master and child files
+            Map<String, Map<String, String>> masterData = readCSVToMap(masterFilePath);
+            Map<String, Map<String, String>> childData = readCSVToMap(childFilePath);
 
-            // Read the input CSV file
-            BufferedReader csvReader = new BufferedReader(new FileReader(inputCsvFilePath));
-            StringBuilder outputContent = new StringBuilder();
+            // Find common SUBJECTIDs
+            Set<String> commonSubjectIDs = new HashSet<>(masterData.keySet());
+            commonSubjectIDs.retainAll(childData.keySet());
 
-            // Read and parse the header line
-            String headerLine = csvReader.readLine();
-            if (headerLine == null) {
-                System.out.println("The input CSV file is empty.");
-                return;
-            }
+            // Find common headers
+            List<String> commonHeaders = getCommonHeaders(masterData, childData);
 
-            String[] headers = headerLine.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)"); // Split by commas handling quotes
-            List<Integer> columnsToCleanIndices = getColumnIndices(headers, columnsToClean);
+            // Write the differences to the output file
+            Map<String, Map<String, Integer>> columnMatchCounts = writeDifferencesToFile(masterData, childData, commonSubjectIDs, commonHeaders, diffOutputPath);
 
-            // Write the header to the output file
-            outputContent.append(headerLine).append("\n");
+            // Write column-wise match percentages to a .txt file
+            writeColumnMatchPercentagesToFile(columnMatchCounts, commonSubjectIDs.size(), percentageOutputPath);
 
-            // Process and clean each row
-            String row;
-            while ((row = csvReader.readLine()) != null) {
-                String[] values = row.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1); // Handle quoted fields
-                for (int columnIndex : columnsToCleanIndices) {
-                    if (columnIndex < values.length) {
-                        values[columnIndex] = cleanValue(values[columnIndex]);
-                    }
-                }
-                outputContent.append(String.join(",", values)).append("\n");
-            }
-
-            csvReader.close();
-
-            // Write the cleaned content to a new file
-            BufferedWriter csvWriter = new BufferedWriter(new FileWriter(outputCsvFilePath));
-            csvWriter.write(outputContent.toString());
-            csvWriter.close();
-
-            System.out.println("Processing complete. Updated CSV saved to: " + outputCsvFilePath);
+            System.out.println("Comparison complete. Differences saved to: " + diffOutputPath);
+            System.out.println("Column match percentages saved to: " + percentageOutputPath);
 
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    // Method to read column names to clean from the .txt file
-    private static List<String> readColumnsFromFile(String filePath) throws IOException {
-        List<String> columns = new ArrayList<>();
+    // Method to read a CSV file into a Map where key is SUBJECTID and value is a map of column-value pairs
+    private static Map<String, Map<String, String>> readCSVToMap(String filePath) throws IOException {
+        Map<String, Map<String, String>> data = new LinkedHashMap<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                columns.add(line.trim());
+            String headerLine = reader.readLine();
+            if (headerLine == null) {
+                throw new IOException("The file is empty: " + filePath);
+            }
+
+            String[] headers = headerLine.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)"); // Split headers by commas handling quotes
+
+            String row;
+            while ((row = reader.readLine()) != null) {
+                String[] values = row.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1); // Handle quoted fields
+                if (values.length < headers.length) continue; // Skip rows with fewer columns than headers
+                String subjectID = values[0].trim(); // Assume SUBJECTID is the first column
+                Map<String, String> rowData = new LinkedHashMap<>();
+                for (int i = 0; i < headers.length; i++) {
+                    rowData.put(headers[i].trim(), values[i].trim());
+                }
+                data.put(subjectID, rowData);
             }
         }
-        return columns;
+        return data;
     }
 
-    // Method to get the indices of the columns to clean
-    private static List<Integer> getColumnIndices(String[] headers, List<String> columnsToClean) {
-        List<Integer> indices = new ArrayList<>();
-        for (int i = 0; i < headers.length; i++) {
-            String header = headers[i].replaceAll("^\"|\"$", "").trim(); // Remove quotes and trim
-            if (columnsToClean.contains(header)) {
-                indices.add(i);
+    // Method to find common headers between MasterFile and ChildFile
+    private static List<String> getCommonHeaders(Map<String, Map<String, String>> masterData, Map<String, Map<String, String>> childData) {
+        if (masterData.isEmpty() || childData.isEmpty()) return Collections.emptyList();
+
+        Set<String> masterHeaders = masterData.values().iterator().next().keySet();
+        Set<String> childHeaders = childData.values().iterator().next().keySet();
+
+        List<String> commonHeaders = new ArrayList<>(masterHeaders);
+        commonHeaders.retainAll(childHeaders);
+
+        return commonHeaders;
+    }
+
+    // Method to write differences to the output file and count matches for each column
+    private static Map<String, Map<String, Integer>> writeDifferencesToFile(
+            Map<String, Map<String, String>> masterData,
+            Map<String, Map<String, String>> childData,
+            Set<String> commonSubjectIDs,
+            List<String> commonHeaders,
+            String outputFilePath) throws IOException {
+
+        Map<String, Integer> matchCounts = new LinkedHashMap<>();
+        Map<String, Integer> totalCounts = new LinkedHashMap<>();
+
+        // Initialize counts
+        for (String header : commonHeaders) {
+            matchCounts.put(header, 0);
+            totalCounts.put(header, 0);
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath))) {
+            // Write header row
+            writer.write("SUBJECTID,COLUMN,MASTER_VALUE,CHILD_VALUE\n");
+
+            for (String subjectID : commonSubjectIDs) {
+                Map<String, String> masterRow = masterData.get(subjectID);
+                Map<String, String> childRow = childData.get(subjectID);
+
+                for (String header : commonHeaders) {
+                    String masterValue = masterRow.getOrDefault(header, "");
+                    String childValue = childRow.getOrDefault(header, "");
+                    totalCounts.put(header, totalCounts.get(header) + 1);
+                    if (masterValue.equals(childValue)) {
+                        matchCounts.put(header, matchCounts.get(header) + 1);
+                    } else {
+                        writer.write(subjectID + "," + header + "," + masterValue + "," + childValue + "\n");
+                    }
+                }
             }
         }
-        return indices;
+
+        // Return counts for column match percentages
+        Map<String, Map<String, Integer>> columnMatchCounts = new LinkedHashMap<>();
+        columnMatchCounts.put("matches", matchCounts);
+        columnMatchCounts.put("totals", totalCounts);
+        return columnMatchCounts;
     }
 
-    // Method to clean a value by removing extra spaces and fixing delimiters
-    private static String cleanValue(String value) {
-        // Replace multiple spaces with a single space
-        value = value.replaceAll("\\s{2,}", " ");
-        // Remove spaces around the pipe symbol
-        value = value.replaceAll("\\s*\\|\\s*", "|");
-        // Trim the entire value to ensure no trailing or leading spaces
-        value = value.trim();
-        // Remove trailing pipe symbol, if present
-        if (value.endsWith("|")) {
-            value = value.substring(0, value.length() - 1);
+    // Method to write column match percentages to a .txt file
+    private static void writeColumnMatchPercentagesToFile(
+            Map<String, Map<String, Integer>> columnMatchCounts,
+            int totalSubjects,
+            String percentageOutputPath) throws IOException {
+
+        Map<String, Integer> matchCounts = columnMatchCounts.get("matches");
+        Map<String, Integer> totalCounts = columnMatchCounts.get("totals");
+
+        Map<String, List<String>> percentageBuckets = new LinkedHashMap<>();
+        percentageBuckets.put("100%", new ArrayList<>());
+        percentageBuckets.put("99%", new ArrayList<>());
+        percentageBuckets.put("90-98%", new ArrayList<>());
+        percentageBuckets.put("80-89%", new ArrayList<>());
+        percentageBuckets.put("70-79%", new ArrayList<>());
+        percentageBuckets.put("60-69%", new ArrayList<>());
+        percentageBuckets.put("50-59%", new ArrayList<>());
+        percentageBuckets.put("<50%", new ArrayList<>());
+
+        for (String header : matchCounts.keySet()) {
+            int matches = matchCounts.get(header);
+            int totals = totalCounts.get(header);
+            double percentage = (double) matches / totals * 100;
+
+            if (percentage == 100) {
+                percentageBuckets.get("100%").add(header);
+            } else if (percentage >= 99) {
+                percentageBuckets.get("99%").add(header);
+            } else if (percentage >= 90) {
+                percentageBuckets.get("90-98%").add(header);
+            } else if (percentage >= 80) {
+                percentageBuckets.get("80-89%").add(header);
+            } else if (percentage >= 70) {
+                percentageBuckets.get("70-79%").add(header);
+            } else if (percentage >= 60) {
+                percentageBuckets.get("60-69%").add(header);
+            } else if (percentage >= 50) {
+                percentageBuckets.get("50-59%").add(header);
+            } else {
+                percentageBuckets.get("<50%").add(header);
+            }
         }
-        return value;
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(percentageOutputPath))) {
+            for (Map.Entry<String, List<String>> entry : percentageBuckets.entrySet()) {
+                String range = entry.getKey();
+                List<String> headers = entry.getValue();
+                writer.write(range + ": " + headers.size() + " Column Headers\n");
+                for (String header : headers) {
+                    writer.write("  - " + header + "\n");
+                }
+            }
+        }
     }
 }
