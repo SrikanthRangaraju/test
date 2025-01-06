@@ -1,16 +1,16 @@
 import java.io.*;
 import java.util.*;
 
-public class DeleteColumnsFromCSV {
+public class CleanSpecificColumnsInCSV {
 
     public static void main(String[] args) {
         String inputCsvFilePath = "path/to/input.csv"; // Path to the input CSV file
-        String outputCsvFilePath = "path/to/output.csv"; // Path to the updated output CSV file
-        String columnsToDeleteFilePath = "path/to/columns_to_delete.txt"; // Path to the .txt file containing column names to delete
+        String outputCsvFilePath = "path/to/output.csv"; // Path to save the updated CSV file
+        String columnsToCleanFilePath = "path/to/columns_to_clean.txt"; // Path to the .txt file with column names to clean
 
         try {
-            // Read the list of columns to delete from the file
-            List<String> columnsToDelete = readColumnsFromFile(columnsToDeleteFilePath);
+            // Read the list of columns to clean from the file
+            List<String> columnsToClean = readColumnsFromFile(columnsToCleanFilePath);
 
             // Read the input CSV file
             BufferedReader csvReader = new BufferedReader(new FileReader(inputCsvFilePath));
@@ -24,23 +24,26 @@ public class DeleteColumnsFromCSV {
             }
 
             String[] headers = headerLine.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)"); // Split by commas handling quotes
-            List<Integer> columnsToDeleteIndices = getColumnIndices(headers, columnsToDelete);
+            List<Integer> columnsToCleanIndices = getColumnIndices(headers, columnsToClean);
 
-            // Write the updated header to the output file
-            List<String> updatedHeaders = getUpdatedHeaders(headers, columnsToDeleteIndices);
-            outputContent.append(String.join(",", updatedHeaders)).append("\n");
+            // Write the header to the output file
+            outputContent.append(headerLine).append("\n");
 
-            // Process and write the remaining rows
+            // Process and clean each row
             String row;
             while ((row = csvReader.readLine()) != null) {
                 String[] values = row.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1); // Handle quoted fields
-                List<String> updatedRow = getUpdatedRow(values, columnsToDeleteIndices);
-                outputContent.append(String.join(",", updatedRow)).append("\n");
+                for (int columnIndex : columnsToCleanIndices) {
+                    if (columnIndex < values.length) {
+                        values[columnIndex] = cleanValue(values[columnIndex]);
+                    }
+                }
+                outputContent.append(String.join(",", values)).append("\n");
             }
 
             csvReader.close();
 
-            // Write the output content to a new file
+            // Write the cleaned content to a new file
             BufferedWriter csvWriter = new BufferedWriter(new FileWriter(outputCsvFilePath));
             csvWriter.write(outputContent.toString());
             csvWriter.close();
@@ -52,7 +55,7 @@ public class DeleteColumnsFromCSV {
         }
     }
 
-    // Method to read column names to delete from the .txt file
+    // Method to read column names to clean from the .txt file
     private static List<String> readColumnsFromFile(String filePath) throws IOException {
         List<String> columns = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
@@ -64,37 +67,25 @@ public class DeleteColumnsFromCSV {
         return columns;
     }
 
-    // Method to get the indices of the columns to delete
-    private static List<Integer> getColumnIndices(String[] headers, List<String> columnsToDelete) {
+    // Method to get the indices of the columns to clean
+    private static List<Integer> getColumnIndices(String[] headers, List<String> columnsToClean) {
         List<Integer> indices = new ArrayList<>();
         for (int i = 0; i < headers.length; i++) {
             String header = headers[i].replaceAll("^\"|\"$", "").trim(); // Remove quotes and trim
-            if (columnsToDelete.contains(header)) {
+            if (columnsToClean.contains(header)) {
                 indices.add(i);
             }
         }
         return indices;
     }
 
-    // Method to get updated headers after deleting specified columns
-    private static List<String> getUpdatedHeaders(String[] headers, List<Integer> columnsToDeleteIndices) {
-        List<String> updatedHeaders = new ArrayList<>();
-        for (int i = 0; i < headers.length; i++) {
-            if (!columnsToDeleteIndices.contains(i)) {
-                updatedHeaders.add(headers[i]);
-            }
-        }
-        return updatedHeaders;
-    }
-
-    // Method to get updated row values after deleting specified columns
-    private static List<String> getUpdatedRow(String[] rowValues, List<Integer> columnsToDeleteIndices) {
-        List<String> updatedRow = new ArrayList<>();
-        for (int i = 0; i < rowValues.length; i++) {
-            if (!columnsToDeleteIndices.contains(i)) {
-                updatedRow.add(rowValues[i]);
-            }
-        }
-        return updatedRow;
+    // Method to clean a value by removing extra spaces and fixing delimiters
+    private static String cleanValue(String value) {
+        // Replace multiple spaces with a single space
+        value = value.replaceAll("\\s{2,}", " ");
+        // Remove spaces around the pipe symbol
+        value = value.replaceAll("\\s*\\|\\s*", "|");
+        // Ensure pipes are spaced correctly for the final format
+        return value;
     }
 }
