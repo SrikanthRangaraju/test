@@ -1,80 +1,62 @@
 import java.io.*;
 import java.util.*;
-import java.util.stream.Collectors;
 
-public class FilterCSV {
+public class CleanCSVSpecificColumn {
+
     public static void main(String[] args) {
-        // Input file paths
-        String txtFilePath = "headers.txt"; // Path to the text file with the list of headers
-        String csvFilePath = "fileWithData.csv"; // Path to the CSV file
-        String outputFilePath = "filteredData.csv"; // Output file path
+        String inputFilePath = "path/to/input.csv"; // Replace with your actual file path
+        String outputFilePath = "path/to/output.csv"; // Replace with your desired output file path
+        String targetColumn = "marks"; // Replace with the column name you want to clean
 
         try {
-            // Read the headers from the text file into a Set
-            Set<String> requiredHeaders = new HashSet<>(readLinesFromFile(txtFilePath));
+            // Read the input file
+            BufferedReader reader = new BufferedReader(new FileReader(inputFilePath));
+            StringBuilder outputContent = new StringBuilder();
 
-            // Read the CSV file and process it
-            filterCSVByHeaders(csvFilePath, outputFilePath, requiredHeaders);
-
-            System.out.println("Filtered CSV created: " + outputFilePath);
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    // Method to read lines from a file
-    public static List<String> readLinesFromFile(String filePath) throws IOException {
-        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
-            return br.lines().collect(Collectors.toList());
-        }
-    }
-
-    // Method to filter the CSV by headers and write the filtered data to a new file
-    public static void filterCSVByHeaders(String inputCsvPath, String outputCsvPath, Set<String> requiredHeaders) throws IOException {
-        try (BufferedReader br = new BufferedReader(new FileReader(inputCsvPath));
-             PrintWriter pw = new PrintWriter(new FileWriter(outputCsvPath))) {
-
-            // Read the header line from the CSV
-            String headerLine = br.readLine();
+            // Read the header line
+            String headerLine = reader.readLine();
             if (headerLine == null) {
-                throw new IOException("CSV file is empty");
+                System.out.println("The file is empty.");
+                return;
             }
+            outputContent.append(headerLine).append("\n");
 
-            // Split headers and map to their indexes (lowercase for case-insensitive matching)
+            // Get column index for the target column
             String[] headers = headerLine.split(",");
-            Map<String, Integer> headerIndexMap = new HashMap<>();
+            int columnIndex = -1;
             for (int i = 0; i < headers.length; i++) {
-                headerIndexMap.put(headers[i].trim().toLowerCase(), i);
-            }
-
-            // Determine which columns to keep
-            List<Integer> columnIndexes = new ArrayList<>();
-            for (String header : requiredHeaders) {
-                if (headerIndexMap.containsKey(header.toLowerCase())) {
-                    columnIndexes.add(headerIndexMap.get(header.toLowerCase()));
+                if (headers[i].trim().equalsIgnoreCase(targetColumn)) {
+                    columnIndex = i;
+                    break;
                 }
             }
 
-            if (columnIndexes.isEmpty()) {
-                throw new IOException("No matching headers found in the CSV file");
+            if (columnIndex == -1) {
+                System.out.println("Target column not found.");
+                return;
             }
 
-            // Write the filtered headers to the new file
-            List<String> filteredHeaders = columnIndexes.stream()
-                    .map(index -> headers[index])
-                    .collect(Collectors.toList());
-            pw.println(String.join(",", filteredHeaders));
-
-            // Write the filtered rows to the new file
+            // Process each row
             String line;
-            while ((line = br.readLine()) != null) {
-                String[] values = line.split(",");
-                List<String> filteredValues = columnIndexes.stream()
-                        .map(index -> index < values.length ? values[index] : "") // Handle missing values
-                        .collect(Collectors.toList());
-                pw.println(String.join(",", filteredValues));
+            while ((line = reader.readLine()) != null) {
+                String[] values = line.split(",", -1); // Use -1 to preserve empty values
+                if (columnIndex < values.length) {
+                    // Clean the specific column value by reducing spaces to one
+                    values[columnIndex] = values[columnIndex].replaceAll("\\s{2,}", " ").replace(" | ", "|");
+                }
+                outputContent.append(String.join(",", values)).append("\n");
             }
+            reader.close();
+
+            // Write the output to a new file
+            BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath));
+            writer.write(outputContent.toString());
+            writer.close();
+
+            System.out.println("Processing complete. Output saved to: " + outputFilePath);
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }
