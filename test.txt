@@ -85,7 +85,12 @@ public class CleanSpecificColumnsInCSV {
         value = value.replaceAll("\\s{2,}", " ");
         // Remove spaces around the pipe symbol
         value = value.replaceAll("\\s*\\|\\s*", "|");
-        // Ensure pipes are spaced correctly for the final format
+        // Trim the entire value to ensure no trailing or leading spaces
+        value = value.trim();
+        // Remove trailing pipe symbol, if present
+        if (value.endsWith("|")) {
+            value = value.substring(0, value.length() - 1);
+        }
         return value;
     }
 }
