@@ -1,11 +1,3 @@
-import java.io.*;
-
-public class CleanCSVSpecificColumn {
-
-    public static void main(String[] args) {
-        String inputFilePath = "path/to/input.csv"; // Replace with your actual file path
-        String outputFilePath = "path/to/output.csv"; // Replace with your desired output file path
-        String targetColumn = "EMISOR"; // Replace with the column name you want to clean
 
         try {
             // Read the input file
@@ -46,7 +38,7 @@ public class CleanCSVSpecificColumn {
                 if (columnIndex < values.length) {
                     // Clean the specific column value by reducing spaces to one and cleaning up spaces around '|'
                     values[columnIndex] = values[columnIndex]
-                            .replaceAll("\\s{2,}", " ") // Replace multiple spaces with a single space
+                            .replaceAll("\\s+", " ") // Replace multiple spaces with a single space
                             .replace(" | ", "|"); // Remove spaces around the pipe symbol
                 }
                 outputContent.append(String.join(",", values)).append("\n");
