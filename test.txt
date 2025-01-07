@@ -1,46 +1,71 @@
 import java.io.*;
 import java.util.*;
 
-public class CommonSSNFinder {
+public class FilterCSVBySubjectID {
     public static void main(String[] args) {
-        // Paths to the input files
-        String file1Path = "file1.txt";
-        String file2Path = "file2.txt";
-        String outputFilePath = "common_ids.txt";
+        // Paths to input and output files
+        String csvFilePath = "MasterFile.csv";
+        String subjectIDsFilePath = "SubjectIDs.txt";
+        String outputCsvFilePath = "FilteredMasterFile.csv";
 
         try {
-            // Read SSN IDs from both files into sets
-            Set<String> file1SSNs = readSSNsFromFile(file1Path);
-            Set<String> file2SSNs = readSSNsFromFile(file2Path);
+            // Read SUBJECTIDs from the .txt file into a Set
+            Set<String> subjectIDs = readSubjectIDsFromFile(subjectIDsFilePath);
 
-            // Find common SSN IDs
-            file1SSNs.retainAll(file2SSNs);
+            // Filter the CSV file based on SUBJECTIDs and write to a new file
+            filterCSVBySubjectIDs(csvFilePath, subjectIDs, outputCsvFilePath);
 
-            // Write the common SSNs to the output file
-            writeSSNsToFile(outputFilePath, file1SSNs);
-
-            System.out.println("Common SSN IDs have been written to: " + outputFilePath);
+            System.out.println("Filtered rows have been written to: " + outputCsvFilePath);
         } catch (IOException e) {
             System.err.println("Error: " + e.getMessage());
         }
     }
 
-    private static Set<String> readSSNsFromFile(String filePath) throws IOException {
-        Set<String> ssnSet = new HashSet<>();
+    private static Set<String> readSubjectIDsFromFile(String filePath) throws IOException {
+        Set<String> subjectIDs = new HashSet<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                ssnSet.add(line.trim());
+                subjectIDs.add(line.trim());
             }
         }
-        return ssnSet;
+        return subjectIDs;
     }
 
-    private static void writeSSNsToFile(String filePath, Set<String> ssns) throws IOException {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-            for (String ssn : ssns) {
-                writer.write(ssn);
-                writer.newLine();
+    private static void filterCSVBySubjectIDs(String csvFilePath, Set<String> subjectIDs, String outputCsvFilePath) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new FileReader(csvFilePath));
+             BufferedWriter writer = new BufferedWriter(new FileWriter(outputCsvFilePath))) {
+
+            String header = reader.readLine(); // Read the header row
+            if (header == null) {
+                throw new IOException("CSV file is empty.");
+            }
+
+            writer.write(header); // Write the header to the output file
+            writer.newLine();
+
+            String[] headers = header.split(",");
+            int subjectIDIndex = -1;
+
+            // Find the index of the SUBJECTID column
+            for (int i = 0; i < headers.length; i++) {
+                if (headers[i].trim().equalsIgnoreCase("SUBJECTID")) {
+                    subjectIDIndex = i;
+                    break;
+                }
+            }
+
+            if (subjectIDIndex == -1) {
+                throw new IOException("SUBJECTID column not found in the CSV header.");
+            }
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] row = line.split(",");
+                if (row.length > subjectIDIndex && subjectIDs.contains(row[subjectIDIndex].trim())) {
+                    writer.write(line); // Write matching row to the output file
+                    writer.newLine();
+                }
             }
         }
     }
