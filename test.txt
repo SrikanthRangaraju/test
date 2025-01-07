@@ -1,89 +1,14 @@
-import java.io.*;
-import java.util.*;
+As discussed with the Dev team, there is no issue with the "Order and Filter issue." The QA team used a different baseline file, which is why you are seeing an order issue.
 
-public class FilterCSVByColumns {
-    public static void main(String[] args) {
-        // Input and output file paths
-        String csvFilePath = "input.csv";        // Path to the input CSV file
-        String columnsFilePath = "columns.txt";  // Path to the file with column names
-        String outputCsvFilePath = "filtered_output.csv"; // Path to the output CSV file
+The space issue has been resolved.
+I have generated the stats for 10k, and they look as follows:
 
-        try {
-            // Step 1: Read the required column names from the .txt file
-            List<String> requiredColumns = readColumnsFromFile(columnsFilePath);
+100%: 42
+99%: 35
+90-98%: 10
+0%: 3 (It seems the values are swapped for MONTO and MONTO_D, and there might be a delimiter issue in the Adviser values for FETCHAROTESTO_D).
+When I extended the test to 15k, the stats did not look as good. I suspect there might be an issue during the conversion or splitting of the 100k file into 10k or 15k chunks.
 
-            // Step 2: Filter the CSV file to keep only the required columns
-            filterCSVColumns(csvFilePath, requiredColumns, outputCsvFilePath);
+I would like to review this one more time and will publish the confirmed and latest stats by the end of the day (EOD). I need one more day to complete testing for the large file.
 
-            System.out.println("Filtered CSV has been written to: " + outputCsvFilePath);
-        } catch (IOException e) {
-            System.err.println("Error: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Reads the required column names from a .txt file into a list.
-     */
-    private static List<String> readColumnsFromFile(String filePath) throws IOException {
-        List<String> columns = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                columns.add(line.trim());
-            }
-        }
-        return columns;
-    }
-
-    /**
-     * Filters the CSV file to include only the specified columns.
-     */
-    private static void filterCSVColumns(String csvFilePath, List<String> requiredColumns, String outputCsvFilePath) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new FileReader(csvFilePath));
-             BufferedWriter writer = new BufferedWriter(new FileWriter(outputCsvFilePath))) {
-
-            // Read the header row
-            String headerLine = reader.readLine();
-            if (headerLine == null) {
-                throw new IOException("CSV file is empty.");
-            }
-
-            // Split the header row into column names
-            String[] headers = headerLine.split(",");
-            List<Integer> columnIndexes = new ArrayList<>();
-
-            // Find indexes of required columns
-            for (int i = 0; i < headers.length; i++) {
-                if (requiredColumns.contains(headers[i].trim().replaceAll("\"", ""))) {
-                    columnIndexes.add(i);
-                }
-            }
-
-            if (columnIndexes.isEmpty()) {
-                throw new IOException("None of the specified columns were found in the CSV file.");
-            }
-
-            // Write the filtered header to the output file
-            List<String> filteredHeaders = new ArrayList<>();
-            for (int index : columnIndexes) {
-                filteredHeaders.add(headers[index]);
-            }
-            writer.write(String.join(",", filteredHeaders));
-            writer.newLine();
-
-            // Process and write the rows with the selected columns
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] row = line.split(",");
-                List<String> filteredRow = new ArrayList<>();
-                for (int index : columnIndexes) {
-                    if (index < row.length) {
-                        filteredRow.add(row[index]);
-                    }
-                }
-                writer.write(String.join(",", filteredRow));
-                writer.newLine();
-            }
-        }
-    }
-}
+I will upload the data and share the details with the team.
