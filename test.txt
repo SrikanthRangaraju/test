@@ -1,71 +1,88 @@
 import java.io.*;
 import java.util.*;
 
-public class FilterCSVBySubjectID {
+public class FilterCSVByColumns {
     public static void main(String[] args) {
-        // Paths to input and output files
-        String csvFilePath = "MasterFile.csv";
-        String subjectIDsFilePath = "SubjectIDs.txt";
-        String outputCsvFilePath = "FilteredMasterFile.csv";
+        // Input and output file paths
+        String csvFilePath = "input.csv";        // Path to the input CSV file
+        String columnsFilePath = "columns.txt";  // Path to the file with column names
+        String outputCsvFilePath = "filtered_output.csv"; // Path to the output CSV file
 
         try {
-            // Read SUBJECTIDs from the .txt file into a Set
-            Set<String> subjectIDs = readSubjectIDsFromFile(subjectIDsFilePath);
+            // Step 1: Read the required column names from the .txt file
+            List<String> requiredColumns = readColumnsFromFile(columnsFilePath);
 
-            // Filter the CSV file based on SUBJECTIDs and write to a new file
-            filterCSVBySubjectIDs(csvFilePath, subjectIDs, outputCsvFilePath);
+            // Step 2: Filter the CSV file to keep only the required columns
+            filterCSVColumns(csvFilePath, requiredColumns, outputCsvFilePath);
 
-            System.out.println("Filtered rows have been written to: " + outputCsvFilePath);
+            System.out.println("Filtered CSV has been written to: " + outputCsvFilePath);
         } catch (IOException e) {
             System.err.println("Error: " + e.getMessage());
         }
     }
 
-    private static Set<String> readSubjectIDsFromFile(String filePath) throws IOException {
-        Set<String> subjectIDs = new HashSet<>();
+    /**
+     * Reads the required column names from a .txt file into a list.
+     */
+    private static List<String> readColumnsFromFile(String filePath) throws IOException {
+        List<String> columns = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                subjectIDs.add(line.trim());
+                columns.add(line.trim());
             }
         }
-        return subjectIDs;
+        return columns;
     }
 
-    private static void filterCSVBySubjectIDs(String csvFilePath, Set<String> subjectIDs, String outputCsvFilePath) throws IOException {
+    /**
+     * Filters the CSV file to include only the specified columns.
+     */
+    private static void filterCSVColumns(String csvFilePath, List<String> requiredColumns, String outputCsvFilePath) throws IOException {
         try (BufferedReader reader = new BufferedReader(new FileReader(csvFilePath));
              BufferedWriter writer = new BufferedWriter(new FileWriter(outputCsvFilePath))) {
 
-            String header = reader.readLine(); // Read the header row
-            if (header == null) {
+            // Read the header row
+            String headerLine = reader.readLine();
+            if (headerLine == null) {
                 throw new IOException("CSV file is empty.");
             }
 
-            writer.write(header); // Write the header to the output file
-            writer.newLine();
+            // Split the header row into column names
+            String[] headers = headerLine.split(",");
+            List<Integer> columnIndexes = new ArrayList<>();
 
-            String[] headers = header.split(",");
-            int subjectIDIndex = -1;
-
-            // Find the index of the SUBJECTID column
+            // Find indexes of required columns
             for (int i = 0; i < headers.length; i++) {
-                if (headers[i].trim().equalsIgnoreCase("SUBJECTID")) {
-                    subjectIDIndex = i;
-                    break;
+                if (requiredColumns.contains(headers[i].trim().replaceAll("\"", ""))) {
+                    columnIndexes.add(i);
                 }
             }
 
-            if (subjectIDIndex == -1) {
-                throw new IOException("SUBJECTID column not found in the CSV header.");
+            if (columnIndexes.isEmpty()) {
+                throw new IOException("None of the specified columns were found in the CSV file.");
             }
 
+            // Write the filtered header to the output file
+            List<String> filteredHeaders = new ArrayList<>();
+            for (int index : columnIndexes) {
+                filteredHeaders.add(headers[index]);
+            }
+            writer.write(String.join(",", filteredHeaders));
+            writer.newLine();
+
+            // Process and write the rows with the selected columns
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] row = line.split(",");
-                if (row.length > subjectIDIndex && subjectIDs.contains(row[subjectIDIndex].trim())) {
-                    writer.write(line); // Write matching row to the output file
-                    writer.newLine();
+                List<String> filteredRow = new ArrayList<>();
+                for (int index : columnIndexes) {
+                    if (index < row.length) {
+                        filteredRow.add(row[index]);
+                    }
                 }
+                writer.write(String.join(",", filteredRow));
+                writer.newLine();
             }
         }
     }
