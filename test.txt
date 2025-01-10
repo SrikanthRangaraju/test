@@ -1,14 +1,13 @@
-As discussed with the Dev team, there is no issue with the "Order and Filter issue." The QA team used a different baseline file, which is why you are seeing an order issue.
+As per our commitment for the January 10th deadline, we have successfully conducted the mismatch testing for 10K RUT IDs, and the results are as follows:
 
-The space issue has been resolved.
-I have generated the stats for 10k, and they look as follows:
+We have extended the same testing to 20K RUT IDs, and the updated statistics are as below.
+One attribute showing a 50% mismatch is due to a minor fix needed from the development team, which is scheduled to be resolved and deployed by tomorrow.
+There are 5-6 attributes for which we are awaiting confirmation from Franco.
+For attributes with 90–98% accuracy:
 
-100%: 42
-99%: 35
-90-98%: 10
-0%: 3 (It seems the values are swapped for MONTO and MONTO_D, and there might be a delimiter issue in the Adviser values for FETCHAROTESTO_D).
-When I extended the test to 15k, the stats did not look as good. I suspect there might be an issue during the conversion or splitting of the 100k file into 10k or 15k chunks.
+We have verified several RUT IDs and are confident that the mismatches are primarily due to the 5-year filtering applied on the Get Data side.
+This is not likely an issue with either the Get Data or Adviser sides, as the baseline file provided was from three months ago, while Get Data applies a filter for the last 5 years.
+The mismatches appear to be expected, and we believe providing us with an updated expected output file may align the results more closely.
+We are continuing to work on and investigate additional attributes with mismatches and will provide detailed reasons for any discrepancies we identify.
 
-I would like to review this one more time and will publish the confirmed and latest stats by the end of the day (EOD). I need one more day to complete testing for the large file.
-
-I will upload the data and share the details with the team.
+Let me know if you have any questions or need further clarification.
