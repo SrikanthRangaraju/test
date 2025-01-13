@@ -1,13 +1,203 @@
-As per our commitment for the January 10th deadline, we have successfully conducted the mismatch testing for 10K RUT IDs, and the results are as follows:
+import java.io.*;
+import java.util.*;
 
-We have extended the same testing to 20K RUT IDs, and the updated statistics are as below.
-One attribute showing a 50% mismatch is due to a minor fix needed from the development team, which is scheduled to be resolved and deployed by tomorrow.
-There are 5-6 attributes for which we are awaiting confirmation from Franco.
-For attributes with 90–98% accuracy:
+public class CompareCSVFilesWithStats {
 
-We have verified several RUT IDs and are confident that the mismatches are primarily due to the 5-year filtering applied on the Get Data side.
-This is not likely an issue with either the Get Data or Adviser sides, as the baseline file provided was from three months ago, while Get Data applies a filter for the last 5 years.
-The mismatches appear to be expected, and we believe providing us with an updated expected output file may align the results more closely.
-We are continuing to work on and investigate additional attributes with mismatches and will provide detailed reasons for any discrepancies we identify.
+    public static void main(String[] args) throws IOException {
+        String expectedFilePath = "Expected_Output.csv"; // Replace with your Expected Output file path
+        String actualFilePath = "Actual_Output.csv";     // Replace with your Actual Output file path
+        String outputCSVFile = "Differences.csv";        // Output CSV for differences
+        String outputStatsFile = "Statistics.txt";       // Output TXT for statistics
 
-Let me know if you have any questions or need further clarification.
+        // Specify the delimiter for each file
+        char expectedDelimiter = ',';  // Comma delimiter
+        char actualDelimiter = ';';    // Semicolon delimiter
+
+        // Read CSV files into maps (Key: SubjectId, Value: Row data as Map<ColumnName, Value>)
+        Map<String, Map<String, String>> expectedData = readCSV(expectedFilePath, expectedDelimiter);
+        Map<String, Map<String, String>> actualData = readCSV(actualFilePath, actualDelimiter);
+
+        // Compare the two maps and find differences
+        List<String> missingInActual = new ArrayList<>();
+        List<String> extraInActual = new ArrayList<>();
+        List<String[]> differences = new ArrayList<>();
+        Set<String> commonIds = new HashSet<>();
+
+        compareFiles(expectedData, actualData, missingInActual, extraInActual, differences, commonIds);
+
+        // Write the differences to a CSV file
+        writeDifferences(outputCSVFile, missingInActual, extraInActual, differences);
+
+        // Write the statistics to a TXT file
+        writeStatistics(outputStatsFile, expectedData, actualData, commonIds);
+
+        System.out.println("Differences written to: " + outputCSVFile);
+        System.out.println("Statistics written to: " + outputStatsFile);
+    }
+
+    // Method to read a CSV into a nested map: Map<SubjectId, Map<ColumnName, Value>>
+    private static Map<String, Map<String, String>> readCSV(String filePath, char delimiter) throws IOException {
+        Map<String, Map<String, String>> dataMap = new LinkedHashMap<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String headerLine = br.readLine(); // Read the header
+            if (headerLine == null) {
+                throw new IllegalArgumentException("Empty file: " + filePath);
+            }
+            String[] columns = headerLine.split(String.valueOf(delimiter));
+
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(String.valueOf(delimiter), -1); // Include empty values
+                if (values.length > 0) {
+                    String subjectId = values[0]; // Assume SubjectId is the first column
+                    Map<String, String> rowData = new HashMap<>();
+                    for (int i = 0; i < columns.length; i++) {
+                        rowData.put(columns[i], i < values.length ? values[i] : "");
+                    }
+                    dataMap.put(subjectId, rowData);
+                }
+            }
+        }
+        return dataMap;
+    }
+
+    // Method to compare two maps and collect differences
+    private static void compareFiles(Map<String, Map<String, String>> expectedData,
+                                     Map<String, Map<String, String>> actualData,
+                                     List<String> missingInActual,
+                                     List<String> extraInActual,
+                                     List<String[]> differences,
+                                     Set<String> commonIds) {
+
+        // Check for Subject IDs in expected but not in actual
+        for (String subjectId : expectedData.keySet()) {
+            if (!actualData.containsKey(subjectId)) {
+                missingInActual.add(subjectId);
+            } else {
+                commonIds.add(subjectId); // Track common IDs
+                // Compare row data for the Subject ID
+                Map<String, String> expectedRow = expectedData.get(subjectId);
+                Map<String, String> actualRow = actualData.get(subjectId);
+
+                for (String column : expectedRow.keySet()) {
+                    String expectedValue = expectedRow.getOrDefault(column, "");
+                    String actualValue = actualRow.getOrDefault(column, "");
+
+                    if (!expectedValue.equals(actualValue)) {
+                        differences.add(new String[]{subjectId, column, expectedValue, actualValue});
+                    }
+                }
+            }
+        }
+
+        // Check for Subject IDs in actual but not in expected
+        for (String subjectId : actualData.keySet()) {
+            if (!expectedData.containsKey(subjectId)) {
+                extraInActual.add(subjectId);
+            }
+        }
+    }
+
+    // Method to write statistics to a TXT file
+    private static void writeStatistics(String filePath, Map<String, Map<String, String>> expectedData,
+                                        Map<String, Map<String, String>> actualData, Set<String> commonIds) throws IOException {
+        Map<String, Integer> columnMatchCounts = new HashMap<>();
+
+        // Count matches for each column
+        for (String subjectId : commonIds) {
+            Map<String, String> expectedRow = expectedData.get(subjectId);
+            Map<String, String> actualRow = actualData.get(subjectId);
+
+            for (String column : expectedRow.keySet()) {
+                String expectedValue = expectedRow.getOrDefault(column, "");
+                String actualValue = actualRow.getOrDefault(column, "");
+
+                if (expectedValue.equals(actualValue)) {
+                    columnMatchCounts.put(column, columnMatchCounts.getOrDefault(column, 0) + 1);
+                }
+            }
+        }
+
+        int totalCommonIds = commonIds.size();
+        Map<String, List<String>> percentageCategories = new LinkedHashMap<>();
+        percentageCategories.put("100%", new ArrayList<>());
+        percentageCategories.put("99%", new ArrayList<>());
+        percentageCategories.put("90-98%", new ArrayList<>());
+        percentageCategories.put("80-89%", new ArrayList<>());
+        percentageCategories.put("70-79%", new ArrayList<>());
+        percentageCategories.put("60-69%", new ArrayList<>());
+        percentageCategories.put("Less than 60%", new ArrayList<>());
+
+        // Categorize columns based on match percentage
+        for (String column : columnMatchCounts.keySet()) {
+            double matchPercentage = (columnMatchCounts.get(column) * 100.0) / totalCommonIds;
+
+            if (matchPercentage == 100) {
+                percentageCategories.get("100%").add(column);
+            } else if (matchPercentage >= 99) {
+                percentageCategories.get("99%").add(column);
+            } else if (matchPercentage >= 90) {
+                percentageCategories.get("90-98%").add(column);
+            } else if (matchPercentage >= 80) {
+                percentageCategories.get("80-89%").add(column);
+            } else if (matchPercentage >= 70) {
+                percentageCategories.get("70-79%").add(column);
+            } else if (matchPercentage >= 60) {
+                percentageCategories.get("60-69%").add(column);
+            } else {
+                percentageCategories.get("Less than 60%").add(column);
+            }
+        }
+
+        // Write statistics to file
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(filePath))) {
+            bw.write("Total number of common IDs: " + totalCommonIds);
+            bw.newLine();
+            bw.newLine();
+
+            for (String range : percentageCategories.keySet()) {
+                bw.write(range + " match:");
+                bw.newLine();
+                bw.write("Columns: " + percentageCategories.get(range));
+                bw.newLine();
+                bw.write("Total number of columns: " + percentageCategories.get(range).size());
+                bw.newLine();
+                bw.newLine();
+            }
+        }
+    }
+
+    // Method to write differences to a CSV file
+    private static void writeDifferences(String filePath, List<String> missingInActual,
+                                         List<String> extraInActual, List<String[]> differences) throws IOException {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(filePath))) {
+            // Write missing rows
+            bw.write("Missing Subject IDs:");
+            bw.newLine();
+            for (String id : missingInActual) {
+                bw.write(id);
+                bw.newLine();
+            }
+
+            // Write extra rows
+            bw.newLine();
+            bw.write("Extra in Actual Output:");
+            bw.newLine();
+            for (String id : extraInActual) {
+                bw.write(id);
+                bw.newLine();
+            }
+
+            // Write detailed differences
+            bw.newLine();
+            bw.write("Differences in Data:");
+            bw.newLine();
+            bw.write("SubjectId,Column,Expected Value,Actual Value");
+            bw.newLine();
+            for (String[] diff : differences) {
+                bw.write(String.join(",", diff));
+                bw.newLine();
+            }
+        }
+    }
+}
