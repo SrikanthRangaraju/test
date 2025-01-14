@@ -48,15 +48,15 @@ public class CompareCSVFiles {
             }
             String[] columns = headerLine.split(String.valueOf(delimiter));
 
-            // Normalize headers to uppercase
+            // Normalize headers: trim, remove quotes, and convert to uppercase
             for (int i = 0; i < columns.length; i++) {
-                columns[i] = columns[i].toUpperCase();
+                columns[i] = columns[i].trim().replace("\"", "").toUpperCase(); // Remove double quotes
             }
 
             // Find the index of the SUBJECTID column
             int subjectIdIndex = -1;
             for (int i = 0; i < columns.length; i++) {
-                if (columns[i].equalsIgnoreCase("SUBJECTID")) {
+                if (columns[i].equals("SUBJECTID")) {
                     subjectIdIndex = i;
                     break;
                 }
@@ -73,10 +73,10 @@ public class CompareCSVFiles {
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(String.valueOf(delimiter), -1); // Include empty values
                 if (values.length > subjectIdIndex) {
-                    String subjectId = values[subjectIdIndex].trim().toUpperCase(); // Extract and normalize SUBJECTID
+                    String subjectId = values[subjectIdIndex].trim().replace("\"", "").toUpperCase(); // Remove quotes
                     Map<String, String> rowData = new HashMap<>();
                     for (int i = 0; i < columns.length; i++) {
-                        rowData.put(columns[i], i < values.length ? values[i] : "");
+                        rowData.put(columns[i], i < values.length ? values[i].trim().replace("\"", "") : "");
                     }
                     dataMap.put(subjectId, rowData);
 
