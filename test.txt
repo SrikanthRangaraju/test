@@ -16,10 +16,14 @@ public class CompareCSVFiles {
 
         // Read the columns to compare from the .txt file
         Set<String> columnsToCompare = readColumns(columnsFilePath);
+        System.out.println("Columns to compare: " + columnsToCompare);
 
         // Read CSV files into maps (Key: SUBJECTID, Value: Map<ColumnName, Value>)
         Map<String, Map<String, String>> expectedData = readCSV(expectedFilePath, expectedDelimiter);
         Map<String, Map<String, String>> actualData = readCSV(actualFilePath, actualDelimiter);
+
+        System.out.println("Expected file loaded. Total rows: " + expectedData.size());
+        System.out.println("Actual file loaded. Total rows: " + actualData.size());
 
         // Compare the two maps and find differences
         List<String[]> differences = new ArrayList<>();
@@ -35,7 +39,6 @@ public class CompareCSVFiles {
         System.out.println("Statistics written to: " + outputStatsFile);
     }
 
-    // Method to read a CSV file into a nested map: Map<SUBJECTID, Map<ColumnName, Value>>
     private static Map<String, Map<String, String>> readCSV(String filePath, char delimiter) throws IOException {
         Map<String, Map<String, String>> dataMap = new LinkedHashMap<>();
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
@@ -50,6 +53,8 @@ public class CompareCSVFiles {
                 columns[i] = columns[i].toUpperCase();
             }
 
+            System.out.println("Headers for file " + filePath + ": " + Arrays.toString(columns));
+
             String line;
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(String.valueOf(delimiter), -1); // Include empty values
@@ -60,13 +65,16 @@ public class CompareCSVFiles {
                         rowData.put(columns[i], i < values.length ? values[i] : "");
                     }
                     dataMap.put(subjectId, rowData);
+
+                    if (dataMap.size() <= 5) { // Debug: Print only the first 5 rows
+                        System.out.println("SUBJECTID: " + subjectId + ", Data: " + rowData);
+                    }
                 }
             }
         }
         return dataMap;
     }
 
-    // Method to read column names from a .txt file
     private static Set<String> readColumns(String filePath) throws IOException {
         Set<String> columns = new HashSet<>();
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
@@ -78,7 +86,6 @@ public class CompareCSVFiles {
         return columns;
     }
 
-    // Method to compare the expected and actual maps, and collect differences
     private static void compareFiles(Map<String, Map<String, String>> expectedData,
                                      Map<String, Map<String, String>> actualData,
                                      Set<String> columnsToCompare,
@@ -87,31 +94,32 @@ public class CompareCSVFiles {
         for (String subjectId : expectedData.keySet()) {
             if (!actualData.containsKey(subjectId)) {
                 differences.add(new String[]{subjectId, "Missing in Actual Output", "", ""});
+                System.out.println("Missing in Actual Output: SUBJECTID = " + subjectId);
             } else {
-                // Compare rows for specified columns
                 Map<String, String> expectedRow = expectedData.get(subjectId);
                 Map<String, String> actualRow = actualData.get(subjectId);
 
                 for (String column : columnsToCompare) {
-                    String expectedValue = expectedRow.getOrDefault(column, "");
-                    String actualValue = actualRow.getOrDefault(column, "");
+                    String expectedValue = expectedRow.getOrDefault(column, "").trim().toUpperCase();
+                    String actualValue = actualRow.getOrDefault(column, "").trim().toUpperCase();
 
                     if (!expectedValue.equals(actualValue)) {
                         differences.add(new String[]{subjectId, column, expectedValue, actualValue});
+                        System.out.println("Mismatch: SUBJECTID=" + subjectId + ", Column=" + column +
+                                ", Expected='" + expectedValue + "', Actual='" + actualValue + "'");
                     }
                 }
             }
         }
 
-        // Check for extra SUBJECTID in actual data
         for (String subjectId : actualData.keySet()) {
             if (!expectedData.containsKey(subjectId)) {
                 differences.add(new String[]{subjectId, "Extra in Actual Output", "", ""});
+                System.out.println("Extra in Actual Output: SUBJECTID = " + subjectId);
             }
         }
     }
 
-    // Method to write differences to a CSV file
     private static void writeDifferences(String filePath, List<String[]> differences) throws IOException {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(filePath))) {
             bw.write("SubjectId,Column,Expected Value,Actual Value");
@@ -123,7 +131,6 @@ public class CompareCSVFiles {
         }
     }
 
-    // Method to write statistics to a TXT file
     private static void writeStatistics(String filePath, Map<String, Map<String, String>> expectedData,
                                         Map<String, Map<String, String>> actualData, Set<String> columnsToCompare) throws IOException {
         int totalCommonIds = 0;
@@ -136,8 +143,8 @@ public class CompareCSVFiles {
                 Map<String, String> actualRow = actualData.get(subjectId);
 
                 for (String column : columnsToCompare) {
-                    String expectedValue = expectedRow.getOrDefault(column, "");
-                    String actualValue = actualRow.getOrDefault(column, "");
+                    String expectedValue = expectedRow.getOrDefault(column, "").trim().toUpperCase();
+                    String actualValue = actualRow.getOrDefault(column, "").trim().toUpperCase();
 
                     if (expectedValue.equals(actualValue)) {
                         columnMatchCounts.put(column, columnMatchCounts.getOrDefault(column, 0) + 1);
@@ -146,17 +153,20 @@ public class CompareCSVFiles {
             }
         }
 
-        // Write statistics to file
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(filePath))) {
             bw.write("Total number of common IDs: " + totalCommonIds);
             bw.newLine();
             bw.newLine();
+
+            System.out.println("Total common IDs: " + totalCommonIds);
 
             for (String column : columnsToCompare) {
                 int matches = columnMatchCounts.getOrDefault(column, 0);
                 double percentage = totalCommonIds > 0 ? (matches * 100.0) / totalCommonIds : 0;
                 bw.write("Column: " + column + " - Match Percentage: " + String.format("%.2f", percentage) + "%");
                 bw.newLine();
+                System.out.println("Column: " + column + ", Matches: " + matches +
+                        ", Total Common IDs: " + totalCommonIds + ", Match Percentage: " + String.format("%.2f", percentage) + "%");
             }
         }
     }
