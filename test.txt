@@ -50,10 +50,10 @@ public class FilterCSVBySubjectID {
             bw.newLine();
 
             // Find the index of the SUBJECTID column
-            String[] headers = header.split(","); // Assuming CSV is comma-delimited
+            String[] headers = header.split(";", -1); // Split using semicolon delimiter
             int subjectIdIndex = -1;
             for (int i = 0; i < headers.length; i++) {
-                if (headers[i].trim().equalsIgnoreCase("SUBJECTID")) {
+                if (headers[i].replace("\"", "").trim().equalsIgnoreCase("SUBJECTID")) {
                     subjectIdIndex = i;
                     break;
                 }
@@ -67,9 +67,9 @@ public class FilterCSVBySubjectID {
             // Filter rows based on SUBJECTID
             String row;
             while ((row = br.readLine()) != null) {
-                String[] columns = row.split(",", -1); // Handle empty fields
+                String[] columns = row.split(";", -1); // Split using semicolon delimiter
                 if (columns.length > subjectIdIndex) {
-                    String subjectId = columns[subjectIdIndex].trim();
+                    String subjectId = columns[subjectIdIndex].replace("\"", "").trim();
                     if (subjectIds.contains(subjectId)) {
                         bw.write(row);
                         bw.newLine();
