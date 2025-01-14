@@ -53,20 +53,35 @@ public class CompareCSVFiles {
                 columns[i] = columns[i].toUpperCase();
             }
 
+            // Find the index of the SUBJECTID column
+            int subjectIdIndex = -1;
+            for (int i = 0; i < columns.length; i++) {
+                if (columns[i].equalsIgnoreCase("SUBJECTID")) {
+                    subjectIdIndex = i;
+                    break;
+                }
+            }
+
+            if (subjectIdIndex == -1) {
+                throw new IllegalArgumentException("SUBJECTID column not found in file: " + filePath);
+            }
+
             System.out.println("Headers for file " + filePath + ": " + Arrays.toString(columns));
+            System.out.println("SUBJECTID column found at index: " + subjectIdIndex);
 
             String line;
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(String.valueOf(delimiter), -1); // Include empty values
-                if (values.length > 0) {
-                    String subjectId = values[0].toUpperCase(); // Normalize SUBJECTID to uppercase
+                if (values.length > subjectIdIndex) {
+                    String subjectId = values[subjectIdIndex].trim().toUpperCase(); // Extract and normalize SUBJECTID
                     Map<String, String> rowData = new HashMap<>();
                     for (int i = 0; i < columns.length; i++) {
                         rowData.put(columns[i], i < values.length ? values[i] : "");
                     }
                     dataMap.put(subjectId, rowData);
 
-                    if (dataMap.size() <= 5) { // Debug: Print only the first 5 rows
+                    // Debug: Print the first few rows
+                    if (dataMap.size() <= 5) {
                         System.out.println("SUBJECTID: " + subjectId + ", Data: " + rowData);
                     }
                 }
