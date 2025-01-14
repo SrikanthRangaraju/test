@@ -1,55 +1,26 @@
 import java.io.*;
-import java.util.*;
 
-public class ReplaceCSVHeaders {
+public class ReplacePipeWithComma {
 
     public static void main(String[] args) {
-        // Input and output file paths
-        String inputFilePath = "C:\\testingAutoChile\\csv-data\\Caps\\caps.csv"; // Path to your input CSV file
-        String outputFilePath = "C:\\testingAutoChile\\csv-data\\headerchange\\output_data_headerchanged.csv"; // Path to your output CSV file
-
-        // Define header mappings: old header to new header
-        Map<String, String> headerMappings = new HashMap<>();
-        headerMappings.put("ABC1", "ABC3");
-        headerMappings.put("LISTADODETALLEPROTESTOSMOROSIDAD_EMISORLIBRADOR", "EMISORLIBRADOR");
-        headerMappings.put("LISTADODETALLEPROTESTOS_FECHAPROTESTO", "FECHAPROTESTO_D");
-        headerMappings.put("RUT", "SUBJECTID");
+        String inputFilePath = "path/to/input.csv";
+        String outputFilePath = "path/to/output.csv";
 
         try (BufferedReader br = new BufferedReader(new FileReader(inputFilePath));
              BufferedWriter bw = new BufferedWriter(new FileWriter(outputFilePath))) {
 
-            // Read the first line (headers)
-            String headerLine = br.readLine();
-            if (headerLine != null) {
-                // Replace headers based on mappings
-                String updatedHeaders = renameHeaders(headerLine, headerMappings, ";");
-                bw.write(updatedHeaders);
-                bw.newLine();
-            }
-
-            // Copy the rest of the file as is
             String line;
             while ((line = br.readLine()) != null) {
-                bw.write(line);
+                // Replace all pipe symbols with commas
+                String updatedLine = line.replace("|", ",");
+                bw.write(updatedLine);
                 bw.newLine();
             }
 
-            System.out.println("Headers renamed successfully!");
+            System.out.println("Pipe symbols replaced with commas successfully!");
 
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-
-    private static String renameHeaders(String headerLine, Map<String, String> mappings, String delimiter) {
-        // Split headers by the specified delimiter (semicolon in this case)
-        String[] headers = headerLine.split(delimiter);
-        for (int i = 0; i < headers.length; i++) {
-            String header = headers[i].replace("\"", "").trim(); // Remove quotes for comparison
-            if (mappings.containsKey(header)) {
-                headers[i] = mappings.get(header); // Replace with new header
-            }
-        }
-        return String.join(delimiter, headers); // Join headers with the same delimiter
     }
 }
