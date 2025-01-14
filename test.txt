@@ -1,23 +1,83 @@
 import java.io.*;
+import java.util.*;
 
-public class ReplacePipeWithComma {
+public class FilterCSVBySubjectID {
 
     public static void main(String[] args) {
-        String inputFilePath = "path/to/input.csv";
-        String outputFilePath = "path/to/output.csv";
+        // File paths
+        String txtFilePath = "path/to/subject_ids.txt"; // Path to the TXT file with SUBJECTIDs
+        String inputCsvPath = "path/to/input.csv"; // Path to the input CSV file
+        String outputCsvPath = "path/to/output.csv"; // Path to the output CSV file
 
-        try (BufferedReader br = new BufferedReader(new FileReader(inputFilePath));
-             BufferedWriter bw = new BufferedWriter(new FileWriter(outputFilePath))) {
+        // Load the SUBJECTIDs from the TXT file
+        Set<String> subjectIds = loadSubjectIds(txtFilePath);
 
+        if (subjectIds.isEmpty()) {
+            System.out.println("No SUBJECTIDs found in the TXT file.");
+            return;
+        }
+
+        // Filter and write rows to the output CSV
+        filterCsvBySubjectIds(inputCsvPath, outputCsvPath, subjectIds);
+    }
+
+    private static Set<String> loadSubjectIds(String txtFilePath) {
+        Set<String> subjectIds = new HashSet<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(txtFilePath))) {
             String line;
             while ((line = br.readLine()) != null) {
-                // Replace all pipe symbols with commas
-                String updatedLine = line.replace("|", ",");
-                bw.write(updatedLine);
-                bw.newLine();
+                subjectIds.add(line.trim()); // Add SUBJECTID to the set
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return subjectIds;
+    }
+
+    private static void filterCsvBySubjectIds(String inputCsvPath, String outputCsvPath, Set<String> subjectIds) {
+        try (BufferedReader br = new BufferedReader(new FileReader(inputCsvPath));
+             BufferedWriter bw = new BufferedWriter(new FileWriter(outputCsvPath))) {
+
+            // Read the header line
+            String header = br.readLine();
+            if (header == null) {
+                System.out.println("Input CSV is empty!");
+                return;
             }
 
-            System.out.println("Pipe symbols replaced with commas successfully!");
+            // Write the header to the output file
+            bw.write(header);
+            bw.newLine();
+
+            // Find the index of the SUBJECTID column
+            String[] headers = header.split(","); // Assuming CSV is comma-delimited
+            int subjectIdIndex = -1;
+            for (int i = 0; i < headers.length; i++) {
+                if (headers[i].trim().equalsIgnoreCase("SUBJECTID")) {
+                    subjectIdIndex = i;
+                    break;
+                }
+            }
+
+            if (subjectIdIndex == -1) {
+                System.out.println("SUBJECTID column not found in the input CSV.");
+                return;
+            }
+
+            // Filter rows based on SUBJECTID
+            String row;
+            while ((row = br.readLine()) != null) {
+                String[] columns = row.split(",", -1); // Handle empty fields
+                if (columns.length > subjectIdIndex) {
+                    String subjectId = columns[subjectIdIndex].trim();
+                    if (subjectIds.contains(subjectId)) {
+                        bw.write(row);
+                        bw.newLine();
+                    }
+                }
+            }
+
+            System.out.println("Filtered rows written to: " + outputCsvPath);
 
         } catch (IOException e) {
             e.printStackTrace();
