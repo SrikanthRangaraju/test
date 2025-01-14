@@ -137,10 +137,10 @@ public class CompareCSVFiles {
 
     private static void writeDifferences(String filePath, List<String[]> differences) throws IOException {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(filePath))) {
-            bw.write("SubjectId,Column,Expected Value,Actual Value");
+            bw.write("SubjectId;Column;Expected Value;Actual Value");
             bw.newLine();
             for (String[] diff : differences) {
-                bw.write(String.join(",", diff));
+                bw.write(String.join(";", diff));
                 bw.newLine();
             }
         }
