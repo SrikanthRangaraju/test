@@ -1,187 +1,79 @@
-import java.io.*;
-import java.util.*;
+private static void writeStatisticsWithRanges(String filePath, Map<String, Map<String, String>> expectedData,
+                                              Map<String, Map<String, String>> actualData, Set<String> columnsToCompare) throws IOException {
+    int totalCommonIds = 0;
+    Map<String, Integer> columnMatchCounts = new HashMap<>();
 
-public class CompareCSVFiles {
-
-    public static void main(String[] args) throws IOException {
-        String expectedFilePath = "Expected_Output.csv";  // Path to the expected output file
-        String actualFilePath = "Actual_Output.csv";      // Path to the actual output file
-        String columnsFilePath = "Columns_To_Compare.txt"; // Path to the file specifying columns to compare
-        String outputCSVFile = "Differences.csv";         // Output file for differences
-        String outputStatsFile = "Statistics.txt";        // Output file for statistics
-
-        // Specify the delimiter for each file
-        char expectedDelimiter = ',';  // Delimiter for the expected file (comma)
-        char actualDelimiter = ';';    // Delimiter for the actual file (semicolon)
-
-        // Read the columns to compare from the .txt file
-        Set<String> columnsToCompare = readColumns(columnsFilePath);
-        System.out.println("Columns to compare: " + columnsToCompare);
-
-        // Read CSV files into maps (Key: SUBJECTID, Value: Map<ColumnName, Value>)
-        Map<String, Map<String, String>> expectedData = readCSV(expectedFilePath, expectedDelimiter);
-        Map<String, Map<String, String>> actualData = readCSV(actualFilePath, actualDelimiter);
-
-        System.out.println("Expected file loaded. Total rows: " + expectedData.size());
-        System.out.println("Actual file loaded. Total rows: " + actualData.size());
-
-        // Compare the two maps and find differences
-        List<String[]> differences = new ArrayList<>();
-        compareFiles(expectedData, actualData, columnsToCompare, differences);
-
-        // Write the differences to a CSV file
-        writeDifferences(outputCSVFile, differences);
-
-        // Write statistics to a TXT file
-        writeStatistics(outputStatsFile, expectedData, actualData, columnsToCompare);
-
-        System.out.println("Differences written to: " + outputCSVFile);
-        System.out.println("Statistics written to: " + outputStatsFile);
-    }
-
-    private static Map<String, Map<String, String>> readCSV(String filePath, char delimiter) throws IOException {
-        Map<String, Map<String, String>> dataMap = new LinkedHashMap<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
-            String headerLine = br.readLine(); // Read the header line
-            if (headerLine == null) {
-                throw new IllegalArgumentException("Empty file: " + filePath);
-            }
-            String[] columns = headerLine.split(String.valueOf(delimiter));
-
-            // Normalize headers: trim, remove quotes, and convert to uppercase
-            for (int i = 0; i < columns.length; i++) {
-                columns[i] = columns[i].trim().replace("\"", "").toUpperCase(); // Remove double quotes
-            }
-
-            // Find the index of the SUBJECTID column
-            int subjectIdIndex = -1;
-            for (int i = 0; i < columns.length; i++) {
-                if (columns[i].equals("SUBJECTID")) {
-                    subjectIdIndex = i;
-                    break;
-                }
-            }
-
-            if (subjectIdIndex == -1) {
-                throw new IllegalArgumentException("SUBJECTID column not found in file: " + filePath);
-            }
-
-            System.out.println("Headers for file " + filePath + ": " + Arrays.toString(columns));
-            System.out.println("SUBJECTID column found at index: " + subjectIdIndex);
-
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] values = line.split(String.valueOf(delimiter), -1); // Include empty values
-                if (values.length > subjectIdIndex) {
-                    String subjectId = values[subjectIdIndex].trim().replace("\"", "").toUpperCase(); // Remove quotes
-                    Map<String, String> rowData = new HashMap<>();
-                    for (int i = 0; i < columns.length; i++) {
-                        rowData.put(columns[i], i < values.length ? values[i].trim().replace("\"", "") : "");
-                    }
-                    dataMap.put(subjectId, rowData);
-
-                    // Debug: Print the first few rows
-                    if (dataMap.size() <= 5) {
-                        System.out.println("SUBJECTID: " + subjectId + ", Data: " + rowData);
-                    }
-                }
-            }
-        }
-        return dataMap;
-    }
-
-    private static Set<String> readColumns(String filePath) throws IOException {
-        Set<String> columns = new HashSet<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                columns.add(line.trim().toUpperCase()); // Normalize column names to uppercase
-            }
-        }
-        return columns;
-    }
-
-    private static void compareFiles(Map<String, Map<String, String>> expectedData,
-                                     Map<String, Map<String, String>> actualData,
-                                     Set<String> columnsToCompare,
-                                     List<String[]> differences) {
-
-        for (String subjectId : expectedData.keySet()) {
-            if (!actualData.containsKey(subjectId)) {
-                differences.add(new String[]{subjectId, "Missing in Actual Output", "", ""});
-                System.out.println("Missing in Actual Output: SUBJECTID = " + subjectId);
-            } else {
-                Map<String, String> expectedRow = expectedData.get(subjectId);
-                Map<String, String> actualRow = actualData.get(subjectId);
-
-                for (String column : columnsToCompare) {
-                    String expectedValue = expectedRow.getOrDefault(column, "").trim().toUpperCase();
-                    String actualValue = actualRow.getOrDefault(column, "").trim().toUpperCase();
-
-                    if (!expectedValue.equals(actualValue)) {
-                        differences.add(new String[]{subjectId, column, expectedValue, actualValue});
-                        System.out.println("Mismatch: SUBJECTID=" + subjectId + ", Column=" + column +
-                                ", Expected='" + expectedValue + "', Actual='" + actualValue + "'");
-                    }
-                }
-            }
-        }
-
-        for (String subjectId : actualData.keySet()) {
-            if (!expectedData.containsKey(subjectId)) {
-                differences.add(new String[]{subjectId, "Extra in Actual Output", "", ""});
-                System.out.println("Extra in Actual Output: SUBJECTID = " + subjectId);
-            }
-        }
-    }
-
-    private static void writeDifferences(String filePath, List<String[]> differences) throws IOException {
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter(filePath))) {
-            bw.write("SubjectId,Column,Expected Value,Actual Value");
-            bw.newLine();
-            for (String[] diff : differences) {
-                bw.write(String.join(",", diff));
-                bw.newLine();
-            }
-        }
-    }
-
-    private static void writeStatistics(String filePath, Map<String, Map<String, String>> expectedData,
-                                        Map<String, Map<String, String>> actualData, Set<String> columnsToCompare) throws IOException {
-        int totalCommonIds = 0;
-        Map<String, Integer> columnMatchCounts = new HashMap<>();
-
-        for (String subjectId : expectedData.keySet()) {
-            if (actualData.containsKey(subjectId)) {
-                totalCommonIds++;
-                Map<String, String> expectedRow = expectedData.get(subjectId);
-                Map<String, String> actualRow = actualData.get(subjectId);
-
-                for (String column : columnsToCompare) {
-                    String expectedValue = expectedRow.getOrDefault(column, "").trim().toUpperCase();
-                    String actualValue = actualRow.getOrDefault(column, "").trim().toUpperCase();
-
-                    if (expectedValue.equals(actualValue)) {
-                        columnMatchCounts.put(column, columnMatchCounts.getOrDefault(column, 0) + 1);
-                    }
-                }
-            }
-        }
-
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter(filePath))) {
-            bw.write("Total number of common IDs: " + totalCommonIds);
-            bw.newLine();
-            bw.newLine();
-
-            System.out.println("Total common IDs: " + totalCommonIds);
+    // Calculate total matches for each column
+    for (String subjectId : expectedData.keySet()) {
+        if (actualData.containsKey(subjectId)) {
+            totalCommonIds++;
+            Map<String, String> expectedRow = expectedData.get(subjectId);
+            Map<String, String> actualRow = actualData.get(subjectId);
 
             for (String column : columnsToCompare) {
-                int matches = columnMatchCounts.getOrDefault(column, 0);
-                double percentage = totalCommonIds > 0 ? (matches * 100.0) / totalCommonIds : 0;
-                bw.write("Column: " + column + " - Match Percentage: " + String.format("%.2f", percentage) + "%");
+                String expectedValue = expectedRow.getOrDefault(column, "").trim().toUpperCase();
+                String actualValue = actualRow.getOrDefault(column, "").trim().toUpperCase();
+
+                if (expectedValue.equals(actualValue)) {
+                    columnMatchCounts.put(column, columnMatchCounts.getOrDefault(column, 0) + 1);
+                }
+            }
+        }
+    }
+
+    // Categorize columns into match percentage ranges
+    Map<String, List<String>> matchRanges = new LinkedHashMap<>();
+    matchRanges.put("100%", new ArrayList<>());
+    matchRanges.put("99%", new ArrayList<>());
+    matchRanges.put("90-98%", new ArrayList<>());
+    matchRanges.put("80-89%", new ArrayList<>());
+    matchRanges.put("70-79%", new ArrayList<>());
+    matchRanges.put("60-69%", new ArrayList<>());
+    matchRanges.put("50-59%", new ArrayList<>());
+    matchRanges.put("40-49%", new ArrayList<>());
+    matchRanges.put("<40%", new ArrayList<>());
+
+    for (String column : columnsToCompare) {
+        int matches = columnMatchCounts.getOrDefault(column, 0);
+        double percentage = totalCommonIds > 0 ? (matches * 100.0) / totalCommonIds : 0;
+
+        if (percentage == 100) {
+            matchRanges.get("100%").add(column);
+        } else if (percentage >= 99) {
+            matchRanges.get("99%").add(column);
+        } else if (percentage >= 90) {
+            matchRanges.get("90-98%").add(column);
+        } else if (percentage >= 80) {
+            matchRanges.get("80-89%").add(column);
+        } else if (percentage >= 70) {
+            matchRanges.get("70-79%").add(column);
+        } else if (percentage >= 60) {
+            matchRanges.get("60-69%").add(column);
+        } else if (percentage >= 50) {
+            matchRanges.get("50-59%").add(column);
+        } else if (percentage >= 40) {
+            matchRanges.get("40-49%").add(column);
+        } else {
+            matchRanges.get("<40%").add(column);
+        }
+    }
+
+    // Write statistics to the file
+    try (BufferedWriter bw = new BufferedWriter(new FileWriter(filePath))) {
+        bw.write("Total number of common IDs: " + totalCommonIds);
+        bw.newLine();
+        bw.newLine();
+
+        System.out.println("Total common IDs: " + totalCommonIds);
+
+        // Write match percentages for each column
+        for (String range : matchRanges.keySet()) {
+            List<String> columnsInRange = matchRanges.get(range);
+            bw.write(range + " Match: " + columnsInRange.size() + " columns");
+            bw.newLine();
+            if (!columnsInRange.isEmpty()) {
+                bw.write("Columns: " + String.join(", ", columnsInRange));
                 bw.newLine();
-                System.out.println("Column: " + column + ", Matches: " + matches +
-                        ", Total Common IDs: " + totalCommonIds + ", Match Percentage: " + String.format("%.2f", percentage) + "%");
             }
         }
     }
