@@ -1,86 +1,104 @@
-import java.io.*;
+import com.opencsv.CSVReader;
+import com.opencsv.CSVWriter;
+
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.*;
 
-public class FilterCSVBySubjectID {
+public class CSVComparator {
 
-    public static void main(String[] args) {
-        // File paths
-        String txtFilePath = "path/to/subject_ids.txt"; // Path to the TXT file with SUBJECTIDs
-        String inputCsvPath = "path/to/input.csv"; // Path to the input CSV file
-        String outputCsvPath = "path/to/output.csv"; // Path to the output CSV file
+    public static void main(String[] args) throws IOException {
 
-        // Load the SUBJECTIDs from the TXT file
-        Set<String> subjectIds = loadSubjectIds(txtFilePath);
+        // Provide the paths to your actual CSV files
+        String expectedFilePath = "path/to/your/expectedoutput.csv"; 
+        String actualFilePath = "path/to/your/actualoutput.csv";
+        String diffFilePath = "path/to/your/diff.csv"; 
 
-        if (subjectIds.isEmpty()) {
-            System.out.println("No SUBJECTIDs found in the TXT file.");
-            return;
-        }
+        // Read CSV files using file paths
+        Map<String, Map<String, String>> expectedData = readCSV(expectedFilePath, ',', "SUBJECTID");
+        Map<String, Map<String, String>> actualData = readCSV(actualFilePath, ';', "SUBJECTID");
 
-        // Filter and write rows to the output CSV
-        filterCsvBySubjectIds(inputCsvPath, outputCsvPath, subjectIds);
+        // Get common SUBJECTIDs and headers
+        Set<String> commonSubjectIDs = getCommonSubjectIDs(expectedData, actualData);
+        List<String> commonHeaders = getCommonHeaders(expectedFilePath, actualFilePath); 
+
+        // Compare data and write differences
+        writeDiffCSV(diffFilePath, expectedData, actualData, commonSubjectIDs, commonHeaders);
+
+        System.out.println("Comparison complete. Differences written to " + diffFilePath);
     }
 
-    private static Set<String> loadSubjectIds(String txtFilePath) {
-        Set<String> subjectIds = new HashSet<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(txtFilePath))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                subjectIds.add(line.trim()); // Add SUBJECTID to the set
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return subjectIds;
-    }
-
-    private static void filterCsvBySubjectIds(String inputCsvPath, String outputCsvPath, Set<String> subjectIds) {
-        try (BufferedReader br = new BufferedReader(new FileReader(inputCsvPath));
-             BufferedWriter bw = new BufferedWriter(new FileWriter(outputCsvPath))) {
-
-            // Read the header line
-            String header = br.readLine();
-            if (header == null) {
-                System.out.println("Input CSV is empty!");
-                return;
-            }
-
-            // Write the header to the output file
-            bw.write(header);
-            bw.newLine();
-
-            // Find the index of the SUBJECTID column
-            String[] headers = header.split(";", -1); // Split using semicolon delimiter
-            int subjectIdIndex = -1;
-            for (int i = 0; i < headers.length; i++) {
-                if (headers[i].replace("\"", "").trim().equalsIgnoreCase("SUBJECTID")) {
-                    subjectIdIndex = i;
-                    break;
-                }
-            }
-
+    private static Map<String, Map<String, String>> readCSV(String filePath, char delimiter, String subjectIdHeader) throws IOException {
+        Map<String, Map<String, String>> data = new HashMap<>();
+        try (CSVReader reader = new CSVReader(new FileReader(filePath), delimiter)) {
+            String[] headers = reader.readNext(); 
+            int subjectIdIndex = Arrays.asList(headers).indexOf(subjectIdHeader); 
             if (subjectIdIndex == -1) {
-                System.out.println("SUBJECTID column not found in the input CSV.");
-                return;
+                throw new IllegalArgumentException("SUBJECTID header not found in CSV file: " + filePath);
             }
 
-            // Filter rows based on SUBJECTID
-            String row;
-            while ((row = br.readLine()) != null) {
-                String[] columns = row.split(";", -1); // Split using semicolon delimiter
-                if (columns.length > subjectIdIndex) {
-                    String subjectId = columns[subjectIdIndex].replace("\"", "").trim();
-                    if (subjectIds.contains(subjectId)) {
-                        bw.write(row);
-                        bw.newLine();
+            String[] nextLine;
+            while ((nextLine = reader.readNext()) != null) {
+                Map<String, String> rowData = new HashMap<>();
+                String subjectID = nextLine[subjectIdIndex]; 
+                for (int i = 0; i < headers.length; i++) {
+                    rowData.put(headers[i], nextLine[i]);
+                }
+                data.put(subjectID, rowData);
+            }
+        }
+        return data;
+    }
+
+    private static Set<String> getCommonSubjectIDs(Map<String, Map<String, String>> expectedData,
+                                                   Map<String, Map<String, String>> actualData) {
+        Set<String> expectedIDs = expectedData.keySet();
+        Set<String> actualIDs = actualData.keySet();
+        Set<String> commonIDs = new HashSet<>(expectedIDs);
+        commonIDs.retainAll(actualIDs);
+        return commonIDs;
+    }
+
+    private static List<String> getCommonHeaders(String expectedFilePath, String actualFilePath) throws IOException {
+        Set<String> expectedHeaders = new LinkedHashSet<>(Arrays.asList(getHeaderRow(expectedFilePath)));
+        Set<String> actualHeaders = new LinkedHashSet<>(Arrays.asList(getHeaderRow(actualFilePath)));
+        expectedHeaders.retainAll(actualHeaders);
+        return new ArrayList<>(expectedHeaders);
+    }
+
+    private static String[] getHeaderRow(String filePath) throws IOException {
+        try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
+            return reader.readNext();
+        }
+    }
+
+    private static void writeDiffCSV(String diffFilePath,
+                                     Map<String, Map<String, String>> expectedData,
+                                     Map<String, Map<String, String>> actualData,
+                                     Set<String> commonSubjectIDs,
+                                     List<String> commonHeaders) throws IOException {
+
+        try (CSVWriter writer = new CSVWriter(new FileWriter(diffFilePath))) {
+            String[] diffHeader = {"SUBJECTID", "Header", "Expected Value", "Actual Value"};
+            writer.writeNext(diffHeader);
+
+            for (String subjectID : commonSubjectIDs) {
+                for (String header : commonHeaders) {
+                    String expectedValue = expectedData.get(subjectID).get(header);
+                    String actualValue = actualData.get(subjectID).get(header);
+
+                    if (!expectedValue.equals(actualValue)) { 
+                        String[] diffRow = {subjectID, header, expectedValue, actualValue};
+                        writer.writeNext(diffRow);
                     }
                 }
             }
-
-            System.out.println("Filtered rows written to: " + outputCsvPath);
-
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 }
+
+<dependency>
+    <groupId>com.opencsv</groupId>
+    <artifactId>opencsv</artifactId>
+    <version>5.7.1</version> </dependency>
