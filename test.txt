@@ -1,27 +1,28 @@
-SELECT ssnid, ddm0_bic, ddm0_mtu, ddm0_mcc, ddm0_max, mcc_max_mon_bk, bucket
-FROM attr_bucket
-WHERE ssnid IN (11, 22, 33, 44) AND date = '2023-02-01'
+Update on 33 Score-Related Attributes and 93 Credit-Related Attributes
 
-UNION ALL
+As per our discussion this morning regarding the 33 score-related attributes:
 
-SELECT ssnid, mcc_cant_doc_3um, mcc_avg_monto, mcc_max_monto, NULL AS ddm0_bic, NULL AS bucket
-FROM attr_mcc
-WHERE ssnid IN (11, 22, 33, 44) AND date = '2023-02-01'
+I have prepared the baseline file for approximately 300 IDs, covering 12 score attributes spanning across 5 different families.
+The Get data has been generated for all 300 IDs.
+The Adviser output has also been generated for these 300 IDs and the 12 attributes.
+Initial Observations:
+It appears that the Adviser is displaying all defaulted values. This might indicate an issue either with the Get data or with our service. Please investigate this further.
+All the related data has been uploaded to Teams at the following path: [insert path here].
 
-UNION ALL
+Expectations for This Run:
+As an initial part of the mismatch analysis, we have selected the primary families (approximately 5) that are critical. These families are essential not only to certify the 12 attributes but also because other families/attributes depend on them.
+Let’s focus on certifying the attributes related to these families first before moving on to the other families/attributes.
 
-SELECT ssnid, mtu_cant_doc_3um, NULL AS ddm0_bic, NULL AS bucket, NULL AS mcc_avg_monto, NULL AS mcc_max_monto
-FROM attr_mtu
-WHERE ssnid IN (11, 22, 33, 44) AND date = '2023-02-01'
+Note: We are planning to conduct the mismatch analysis at the family level since we are using only one active data point—202311.
 
-UNION ALL
+Update on 93 Credit-Related Attributes:
 
-SELECT ssnid, bic_cant_doc_3um, NULL AS ddm0_bic, NULL AS bucket, NULL AS mcc_avg_monto, NULL AS mcc_max_monto
-FROM attr_bic
-WHERE ssnid IN (11, 22, 33, 44) AND date = '2023-02-01'
+Some issues have been fixed by the BDS team and the Adviser team.
+I have initiated the script to generate the Get data for 45k IDs as well as the Adviser output.
+Expectations for This Run:
+We anticipate an improved match percentage in this run. The ETA for completion is January 22nd, end of day.
 
-UNION ALL
+Let me know if you need any further details or assistance.
 
-SELECT ssnid, cant_doc_vig_3um, NULL AS ddm0_bic, NULL AS bucket, NULL AS mcc_avg_monto, NULL AS mcc_max_monto
-FROM attr_full_morosidad
-WHERE ssnid IN (11, 22, 33, 44) AND date = '2023-02-01';
+
+
