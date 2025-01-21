@@ -1,104 +1,27 @@
-import com.opencsv.CSVReader;
-import com.opencsv.CSVWriter;
+SELECT ssnid, ddm0_bic, ddm0_mtu, ddm0_mcc, ddm0_max, mcc_max_mon_bk, bucket
+FROM attr_bucket
+WHERE ssnid IN (11, 22, 33, 44) AND date = '2023-02-01'
 
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.*;
+UNION ALL
 
-public class CSVComparator {
+SELECT ssnid, mcc_cant_doc_3um, mcc_avg_monto, mcc_max_monto, NULL AS ddm0_bic, NULL AS bucket
+FROM attr_mcc
+WHERE ssnid IN (11, 22, 33, 44) AND date = '2023-02-01'
 
-    public static void main(String[] args) throws IOException {
+UNION ALL
 
-        // Provide the paths to your actual CSV files
-        String expectedFilePath = "path/to/your/expectedoutput.csv"; 
-        String actualFilePath = "path/to/your/actualoutput.csv";
-        String diffFilePath = "path/to/your/diff.csv"; 
+SELECT ssnid, mtu_cant_doc_3um, NULL AS ddm0_bic, NULL AS bucket, NULL AS mcc_avg_monto, NULL AS mcc_max_monto
+FROM attr_mtu
+WHERE ssnid IN (11, 22, 33, 44) AND date = '2023-02-01'
 
-        // Read CSV files using file paths
-        Map<String, Map<String, String>> expectedData = readCSV(expectedFilePath, ',', "SUBJECTID");
-        Map<String, Map<String, String>> actualData = readCSV(actualFilePath, ';', "SUBJECTID");
+UNION ALL
 
-        // Get common SUBJECTIDs and headers
-        Set<String> commonSubjectIDs = getCommonSubjectIDs(expectedData, actualData);
-        List<String> commonHeaders = getCommonHeaders(expectedFilePath, actualFilePath); 
+SELECT ssnid, bic_cant_doc_3um, NULL AS ddm0_bic, NULL AS bucket, NULL AS mcc_avg_monto, NULL AS mcc_max_monto
+FROM attr_bic
+WHERE ssnid IN (11, 22, 33, 44) AND date = '2023-02-01'
 
-        // Compare data and write differences
-        writeDiffCSV(diffFilePath, expectedData, actualData, commonSubjectIDs, commonHeaders);
+UNION ALL
 
-        System.out.println("Comparison complete. Differences written to " + diffFilePath);
-    }
-
-    private static Map<String, Map<String, String>> readCSV(String filePath, char delimiter, String subjectIdHeader) throws IOException {
-        Map<String, Map<String, String>> data = new HashMap<>();
-        try (CSVReader reader = new CSVReader(new FileReader(filePath), delimiter)) {
-            String[] headers = reader.readNext(); 
-            int subjectIdIndex = Arrays.asList(headers).indexOf(subjectIdHeader); 
-            if (subjectIdIndex == -1) {
-                throw new IllegalArgumentException("SUBJECTID header not found in CSV file: " + filePath);
-            }
-
-            String[] nextLine;
-            while ((nextLine = reader.readNext()) != null) {
-                Map<String, String> rowData = new HashMap<>();
-                String subjectID = nextLine[subjectIdIndex]; 
-                for (int i = 0; i < headers.length; i++) {
-                    rowData.put(headers[i], nextLine[i]);
-                }
-                data.put(subjectID, rowData);
-            }
-        }
-        return data;
-    }
-
-    private static Set<String> getCommonSubjectIDs(Map<String, Map<String, String>> expectedData,
-                                                   Map<String, Map<String, String>> actualData) {
-        Set<String> expectedIDs = expectedData.keySet();
-        Set<String> actualIDs = actualData.keySet();
-        Set<String> commonIDs = new HashSet<>(expectedIDs);
-        commonIDs.retainAll(actualIDs);
-        return commonIDs;
-    }
-
-    private static List<String> getCommonHeaders(String expectedFilePath, String actualFilePath) throws IOException {
-        Set<String> expectedHeaders = new LinkedHashSet<>(Arrays.asList(getHeaderRow(expectedFilePath)));
-        Set<String> actualHeaders = new LinkedHashSet<>(Arrays.asList(getHeaderRow(actualFilePath)));
-        expectedHeaders.retainAll(actualHeaders);
-        return new ArrayList<>(expectedHeaders);
-    }
-
-    private static String[] getHeaderRow(String filePath) throws IOException {
-        try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
-            return reader.readNext();
-        }
-    }
-
-    private static void writeDiffCSV(String diffFilePath,
-                                     Map<String, Map<String, String>> expectedData,
-                                     Map<String, Map<String, String>> actualData,
-                                     Set<String> commonSubjectIDs,
-                                     List<String> commonHeaders) throws IOException {
-
-        try (CSVWriter writer = new CSVWriter(new FileWriter(diffFilePath))) {
-            String[] diffHeader = {"SUBJECTID", "Header", "Expected Value", "Actual Value"};
-            writer.writeNext(diffHeader);
-
-            for (String subjectID : commonSubjectIDs) {
-                for (String header : commonHeaders) {
-                    String expectedValue = expectedData.get(subjectID).get(header);
-                    String actualValue = actualData.get(subjectID).get(header);
-
-                    if (!expectedValue.equals(actualValue)) { 
-                        String[] diffRow = {subjectID, header, expectedValue, actualValue};
-                        writer.writeNext(diffRow);
-                    }
-                }
-            }
-        }
-    }
-}
-
-<dependency>
-    <groupId>com.opencsv</groupId>
-    <artifactId>opencsv</artifactId>
-    <version>5.7.1</version> </dependency>
+SELECT ssnid, cant_doc_vig_3um, NULL AS ddm0_bic, NULL AS bucket, NULL AS mcc_avg_monto, NULL AS mcc_max_monto
+FROM attr_full_morosidad
+WHERE ssnid IN (11, 22, 33, 44) AND date = '2023-02-01';
