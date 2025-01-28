@@ -1,104 +1,19 @@
-import java.io.*;
-import java.util.*;
+Here is the plan to address the score mismatch for 33 attributes:
 
-public class ExtractAndSortColumns {
-    public static void main(String[] args) {
-        String inputCsvFilePath = "input.csv";  // Replace with your input CSV file path
-        String headersFilePath = "headers.txt"; // Replace with your text file containing column headers
-        String outputCsvFilePath = "output.csv"; // Replace with your desired output CSV file path
+I have identified 5 common RUT IDs that span across different families, covering 27 attributes. As the first step, let’s focus on achieving a 100% match for these attributes and IDs by determining whether the issue lies in the Get Data process or on the Adviser side. Please prioritize this task and address it as soon as possible.
 
-        try {
-            // Read the desired headers from the text file
-            List<String> desiredHeaders = readHeadersFromFile(headersFilePath);
+Once we achieve the 100% match for the common RUT IDs and attributes mentioned above, we can extend the scope to include individual families with additional RUT IDs to conduct further mismatch analysis.
 
-            // Read the input CSV file
-            try (BufferedReader br = new BufferedReader(new FileReader(inputCsvFilePath));
-                 BufferedWriter bw = new BufferedWriter(new FileWriter(outputCsvFilePath))) {
+For now, please note that there are no RUT IDs related to Mail, Email, Directory, or Families. As such, these attributes/families will not be prioritized until we certify the 27 attributes.
 
-                // Read and parse the header line from the CSV file
-                String headerLine = br.readLine();
-                if (headerLine == null) {
-                    throw new IOException("Input CSV file is empty!");
-                }
 
-                String[] headers = headerLine.split(",");
-                List<Integer> columnIndices = getColumnIndices(headers, desiredHeaders);
+I understand there’s an open issue with the "DIR Family segment" from the BDS side. As a workaround, I’ll work with you to implement the necessary changes in the Get Data response via an automation script, so we can proceed with the mismatch analysis without waiting for the BDS fix.
 
-                // Get selected headers and sort them
-                List<String> selectedHeaders = getHeadersByIndices(headers, columnIndices);
-                Collections.sort(selectedHeaders, String.CASE_INSENSITIVE_ORDER); // Sort headers alphabetically
+I have uploaded all the relevant details to Teams, including:
 
-                // Write the sorted headers to the output CSV file
-                bw.write(String.join(",", selectedHeaders));
-                bw.newLine();
+Get Data responses
+Baseline values
+Adviser values
+Initial observations
+From my initial review, it looks like some of the attributes are matching actual vs. baseline values (i.e., not showing defaulted values, which is a good sign). Once I make the necessary changes in the Get Data response, I will regenerate the Adviser values, generate statistics, and review the results.
 
-                // Sort the column indices based on the sorted headers
-                List<Integer> sortedColumnIndices = getSortedIndices(headers, selectedHeaders);
-
-                // Write the corresponding rows to the output CSV file
-                String row;
-                while ((row = br.readLine()) != null) {
-                    String[] rowValues = row.split(",");
-                    List<String> selectedValues = getValuesByIndices(rowValues, sortedColumnIndices);
-                    bw.write(String.join(",", selectedValues));
-                    bw.newLine();
-                }
-
-                System.out.println("Selected columns extracted, sorted, and written to output CSV file!");
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static List<String> readHeadersFromFile(String filePath) throws IOException {
-        List<String> headers = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                headers.add(line.trim());
-            }
-        }
-        return headers;
-    }
-
-    private static List<Integer> getColumnIndices(String[] headers, List<String> desiredHeaders) {
-        List<Integer> indices = new ArrayList<>();
-        for (int i = 0; i < headers.length; i++) {
-            String header = headers[i].replace("\"", "").trim(); // Remove quotes for comparison
-            if (desiredHeaders.contains(header)) {
-                indices.add(i);
-            }
-        }
-        return indices;
-    }
-
-    private static List<String> getHeadersByIndices(String[] headers, List<Integer> indices) {
-        List<String> selectedHeaders = new ArrayList<>();
-        for (int index : indices) {
-            selectedHeaders.add(headers[index]);
-        }
-        return selectedHeaders;
-    }
-
-    private static List<Integer> getSortedIndices(String[] headers, List<String> sortedHeaders) {
-        Map<String, Integer> headerToIndexMap = new HashMap<>();
-        for (int i = 0; i < headers.length; i++) {
-            headerToIndexMap.put(headers[i].replace("\"", "").trim(), i);
-        }
-
-        List<Integer> sortedIndices = new ArrayList<>();
-        for (String header : sortedHeaders) {
-            sortedIndices.add(headerToIndexMap.get(header.replace("\"", "").trim()));
-        }
-        return sortedIndices;
-    }
-
-    private static List<String> getValuesByIndices(String[] rowValues, List<Integer> indices) {
-        List<String> selectedValues = new ArrayList<>();
-        for (int index : indices) {
-            selectedValues.add(rowValues[index]);
-        }
-        return selectedValues;
-    }
-}
