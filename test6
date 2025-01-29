@@ -1,19 +1,175 @@
-Here is the plan to address the score mismatch for 33 attributes:
+import com.opencsv.CSVReader;
+import com.opencsv.CSVWriter;
+import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
 
-I have identified 5 common RUT IDs that span across different families, covering 27 attributes. As the first step, let’s focus on achieving a 100% match for these attributes and IDs by determining whether the issue lies in the Get Data process or on the Adviser side. Please prioritize this task and address it as soon as possible.
+public class CSVComparator {
+    private static final String SUBJECT_ID = "subjectid";
 
-Once we achieve the 100% match for the common RUT IDs and attributes mentioned above, we can extend the scope to include individual families with additional RUT IDs to conduct further mismatch analysis.
+    public static void main(String[] args) {
+        String file1Path = "file1.csv";
+        String file2Path = "file2.csv";
+        String diffPath = "differences.csv";
+        String reportPath = "summary_report.txt";
 
-For now, please note that there are no RUT IDs related to Mail, Email, Directory, or Families. As such, these attributes/families will not be prioritized until we certify the 27 attributes.
+        try {
+            CsvData csvData1 = readCsv(file1Path);
+            CsvData csvData2 = readCsv(file2Path);
+            Set<String> commonColumns = getCommonColumnsCaseInsensitive(csvData1, csvData2);
+            Map<String, int[]> columnStats = new HashMap<>();
 
+            // Generate differences CSV
+            try (CSVWriter diffWriter = new CSVWriter(new FileWriter(diffPath))) {
+                diffWriter.writeNext(new String[]{"SUBJECTID", "COLUMN_NAME", "FILE1_VALUE", "FILE2_VALUE"});
+                
+                Set<String> allSubjects = new HashSet<>();
+                allSubjects.addAll(csvData1.data.keySet());
+                allSubjects.addAll(csvData2.data.keySet());
 
-I understand there’s an open issue with the "DIR Family segment" from the BDS side. As a workaround, I’ll work with you to implement the necessary changes in the Get Data response via an automation script, so we can proceed with the mismatch analysis without waiting for the BDS fix.
+                for (String subject : allSubjects) {
+                    Map<String, String> row1 = csvData1.data.get(subject);
+                    Map<String, String> row2 = csvData2.data.get(subject);
 
-I have uploaded all the relevant details to Teams, including:
+                    if (row1 == null || row2 == null) {
+                        System.out.println("Subject ID " + subject + " missing in one file");
+                        continue;
+                    }
 
-Get Data responses
-Baseline values
-Adviser values
-Initial observations
-From my initial review, it looks like some of the attributes are matching actual vs. baseline values (i.e., not showing defaulted values, which is a good sign). Once I make the necessary changes in the Get Data response, I will regenerate the Adviser values, generate statistics, and review the results.
+                    for (String lowerCol : commonColumns) {
+                        String col1 = csvData1.columnMappings.get(lowerCol);
+                        String col2 = csvData2.columnMappings.get(lowerCol);
 
+                        String value1 = row1.getOrDefault(col1, "MISSING");
+                        String value2 = row2.getOrDefault(col2, "MISSING");
+
+                        int[] counts = columnStats.computeIfAbsent(col1, k -> new int[2]);
+                        counts[1]++;
+                        
+                        if (value1.equals(value2)) {
+                            counts[0]++;
+                        } else {
+                            diffWriter.writeNext(new String[]{subject, col1, value1, value2});
+                        }
+                    }
+                }
+            }
+
+            // Generate summary report
+            try (BufferedWriter reportWriter = new BufferedWriter(new FileWriter(reportPath))) {
+                reportWriter.write("Column Matching Summary Report\n");
+                reportWriter.write("===============================\n");
+
+                // Individual column stats
+                for (Map.Entry<String, int[]> entry : columnStats.entrySet()) {
+                    String column = entry.getKey();
+                    int matches = entry.getValue()[0];
+                    int total = entry.getValue()[1];
+                    double percentage = total > 0 ? Math.round(((double) matches / total) * 100 * 100) / 100.0 : 0.0;
+                    reportWriter.write(String.format("%s column - matching %% is %.2f%% (%d/%d)%n",
+                            column, percentage, matches, total));
+                }
+
+                // Categorized stats
+                Map<String, List<String>> categories = new LinkedHashMap<String, List<String>>() {{
+                    put("100% match", new ArrayList<>());
+                    put("99% match", new ArrayList<>());
+                    put("90-98% match", new ArrayList<>());
+                    put("80-89% match", new ArrayList<>());
+                    put("70-79% match", new ArrayList<>());
+                    put("Less than 70% match", new ArrayList<>());
+                }};
+
+                for (Map.Entry<String, int[]> entry : columnStats.entrySet()) {
+                    String column = entry.getKey();
+                    int matches = entry.getValue()[0];
+                    int total = entry.getValue()[1];
+                    double percentage = total > 0 ? ((double) matches / total) * 100 : 0.0;
+
+                    if (percentage == 100.0) {
+                        categories.get("100% match").add(column);
+                    } else if (percentage >= 99.0) {
+                        categories.get("99% match").add(column);
+                    } else if (percentage >= 90.0) {
+                        categories.get("90-98% match").add(column);
+                    } else if (percentage >= 80.0) {
+                        categories.get("80-89% match").add(column);
+                    } else if (percentage >= 70.0) {
+                        categories.get("70-79% match").add(column);
+                    } else {
+                        categories.get("Less than 70% match").add(column);
+                    }
+                }
+
+                reportWriter.write("\nMatch Percentage Categories:\n");
+                reportWriter.write("===============================\n");
+                for (Map.Entry<String, List<String>> entry : categories.entrySet()) {
+                    List<String> columns = entry.getValue();
+                    reportWriter.write(String.format("%s - %d columns%n", 
+                            entry.getKey(), columns.size()));
+                    if (!columns.isEmpty()) {
+                        reportWriter.write("Columns: " + String.join(", ", columns) + "\n");
+                    }
+                    reportWriter.newLine();
+                }
+            }
+
+            System.out.println("Processing complete. Output files:");
+            System.out.println("- Differences: " + diffPath);
+            System.out.println("- Summary: " + reportPath);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static CsvData readCsv(String filePath) throws Exception {
+        Map<String, Map<String, String>> data = new HashMap<>();
+        Map<String, String> columnMappings = new HashMap<>();
+
+        try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
+            String[] headers = reader.readNext();
+            if (headers == null) return new CsvData(data, columnMappings);
+
+            for (String header : headers) {
+                String cleanHeader = header.trim();
+                String lowerHeader = cleanHeader.toLowerCase();
+                if (!columnMappings.containsKey(lowerHeader)) {
+                    columnMappings.put(lowerHeader, cleanHeader);
+                }
+            }
+
+            String[] row;
+            while ((row = reader.readNext()) != null) {
+                String subjectId = row[0].trim();
+                Map<String, String> rowMap = new HashMap<>();
+
+                for (int i = 0; i < headers.length; i++) {
+                    String header = headers[i].trim();
+                    String value = i < row.length ? row[i].trim() : "";
+                    rowMap.put(header, value);
+                }
+
+                data.put(subjectId, rowMap);
+            }
+        }
+        return new CsvData(data, columnMappings);
+    }
+
+    private static Set<String> getCommonColumnsCaseInsensitive(CsvData data1, CsvData data2) {
+        Set<String> common = new HashSet<>(data1.columnMappings.keySet());
+        common.retainAll(data2.columnMappings.keySet());
+        common.remove(SUBJECT_ID);
+        return common;
+    }
+
+    static class CsvData {
+        Map<String, Map<String, String>> data;
+        Map<String, String> columnMappings; // Lowercase to original
+
+        CsvData(Map<String, Map<String, String>> data, Map<String, String> columnMappings) {
+            this.data = data;
+            this.columnMappings = columnMappings;
+        }
+    }
+}
