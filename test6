@@ -14,89 +14,156 @@ public class CSVComparator {
         String reportPath = "summary_report.txt";
 
         try {
+            // Read both CSVs preserving original order
             CsvData csvData1 = readCsv(file1Path);
             CsvData csvData2 = readCsv(file2Path);
-            Set<String> commonColumns = getCommonColumnsCaseInsensitive(csvData1, csvData2);
-            Map<String, int[]> columnStats = new HashMap<>();
-
-            // Preserve order: File1 subjects first, then File2 subjects (excluding duplicates)
-            List<String> orderedSubjects = new ArrayList<>(csvData1.subjectOrder);
-            for (String subject : csvData2.subjectOrder) {
-                if (!orderedSubjects.contains(subject)) {
-                    orderedSubjects.add(subject);
-                }
-            }
-
-            try (CSVWriter diffWriter = new CSVWriter(new FileWriter(diffPath))) {
-                diffWriter.writeNext(new String[]{"SUBJECTID", "COLUMN_NAME", "FILE1_VALUE", "FILE2_VALUE"});
-
-                for (String subject : orderedSubjects) {
-                    Map<String, String> row1 = csvData1.data.get(subject);
-                    Map<String, String> row2 = csvData2.data.get(subject);
-
-                    if (row1 == null || row2 == null) {
-                        System.out.println("Subject ID " + subject + " missing in one file");
-                        continue;
-                    }
-
-                    for (String lowerCol : commonColumns) {
-                        String col1 = csvData1.columnMappings.get(lowerCol);
-                        String col2 = csvData2.columnMappings.get(lowerCol);
-
-                        String value1 = row1.getOrDefault(col1, "MISSING");
-                        String value2 = row2.getOrDefault(col2, "MISSING");
-
-                        int[] counts = columnStats.computeIfAbsent(col1, k -> new int[2]);
-                        counts[1]++;
-
-                        if (!value1.equals(value2)) {
-                            diffWriter.writeNext(new String[]{subject, col1, value1, value2});
-                        } else {
-                            counts[0]++;
-                        }
-                    }
-                }
-            }
-
-            // [Keep the existing summary report generation code unchanged]
             
+            // Get common columns (case-insensitive)
+            Set<String> commonColumns = getCommonColumnsCaseInsensitive(csvData1, csvData2);
+            
+            // Maintain original subject order: File1 subjects first, then File2
+            LinkedHashSet<String> orderedSubjects = new LinkedHashSet<>();
+            orderedSubjects.addAll(csvData1.subjectOrder);
+            orderedSubjects.addAll(csvData2.subjectOrder);
+
+            // Data structures for results
+            Map<String, int[]> columnStats = new HashMap<>();
+            List<String[]> differences = new ArrayList<>();
+
+            // Compare data
+            for (String subject : orderedSubjects) {
+                Map<String, String> row1 = csvData1.data.get(subject);
+                Map<String, String> row2 = csvData2.data.get(subject);
+
+                if (row1 == null || row2 == null) {
+                    System.out.println("Subject ID " + subject + " missing in one file");
+                    continue;
+                }
+
+                for (String lowerCol : commonColumns) {
+                    String col1 = csvData1.columnMappings.get(lowerCol);
+                    String col2 = csvData2.columnMappings.get(lowerCol);
+
+                    String value1 = row1.getOrDefault(col1, "MISSING");
+                    String value2 = row2.getOrDefault(col2, "MISSING");
+
+                    int[] counts = columnStats.computeIfAbsent(col1, k -> new int[2]);
+                    counts[1]++; // Total comparisons
+
+                    if (!value1.equals(value2)) {
+                        differences.add(new String[]{subject, col1, value1, value2});
+                    } else {
+                        counts[0]++; // Matches
+                    }
+                }
+            }
+
+            // Write differences.csv
+            try (CSVWriter writer = new CSVWriter(new FileWriter(diffPath))) {
+                writer.writeNext(new String[]{"SUBJECTID", "COLUMN_NAME", "FILE1_VALUE", "FILE2_VALUE"});
+                writer.writeAll(differences);
+            }
+
+            // Generate summary report
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportPath))) {
+                // Individual stats
+                writer.write("Column Matching Summary Report\n");
+                writer.write("===============================\n");
+                for (Map.Entry<String, int[]> entry : columnStats.entrySet()) {
+                    String col = entry.getKey();
+                    int matches = entry.getValue()[0];
+                    int total = entry.getValue()[1];
+                    double pct = total > 0 ? Math.round((matches * 10000.0 / total)) / 100.0 : 0.0;
+                    writer.write(String.format("%s - %.2f%% match (%d/%d)\n", 
+                        col, pct, matches, total));
+                }
+
+                // Categorized stats
+                Map<String, List<String>> categories = new LinkedHashMap<String, List<String>>() {{
+                    put("100% match", new ArrayList<>());
+                    put("99% match", new ArrayList<>());
+                    put("90-98% match", new ArrayList<>());
+                    put("80-89% match", new ArrayList<>());
+                    put("70-79% match", new ArrayList<>());
+                    put("<70% match", new ArrayList<>());
+                }};
+
+                columnStats.forEach((col, stats) -> {
+                    double pct = stats[1] > 0 ? (stats[0] * 100.0 / stats[1]) : 0;
+                    if (pct == 100) categories.get("100% match").add(col);
+                    else if (pct >= 99) categories.get("99% match").add(col);
+                    else if (pct >= 90) categories.get("90-98% match").add(col);
+                    else if (pct >= 80) categories.get("80-89% match").add(col);
+                    else if (pct >= 70) categories.get("70-79% match").add(col);
+                    else categories.get("<70% match").add(col);
+                });
+
+                writer.write("\nMatch Categories:\n");
+                writer.write("=================\n");
+                categories.forEach((category, columns) -> {
+                    try {
+                        writer.write(String.format("%s (%d columns):\n", 
+                            category, columns.size()));
+                        if (!columns.isEmpty()) {
+                            writer.write("  " + String.join(", ", columns) + "\n");
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+            }
+
+            System.out.println("Process completed successfully");
+            System.out.println("Differences: " + diffPath);
+            System.out.println("Summary: " + reportPath);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private static CsvData readCsv(String filePath) throws Exception {
-        Map<String, Map<String, String>> data = new LinkedHashMap<>(); // Preserves insertion order
+    private static CsvData readCsv(String path) throws Exception {
+        Map<String, Map<String, String>> data = new LinkedHashMap<>();
         Map<String, String> columnMappings = new HashMap<>();
         List<String> subjectOrder = new ArrayList<>();
 
-        try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
+        try (CSVReader reader = new CSVReader(new FileReader(path))) {
             String[] headers = reader.readNext();
             if (headers == null) return new CsvData(data, columnMappings, subjectOrder);
 
-            // Create column mappings
+            // Process headers
             for (String header : headers) {
                 String cleanHeader = header.trim();
                 String lowerHeader = cleanHeader.toLowerCase();
-                columnMappings.put(lowerHeader, cleanHeader);
+                if (!columnMappings.containsKey(lowerHeader)) {
+                    columnMappings.put(lowerHeader, cleanHeader);
+                }
             }
 
+            // Process rows
             String[] row;
             while ((row = reader.readNext()) != null) {
+                if (row.length == 0) continue;
                 String subjectId = row[0].trim();
-                subjectOrder.add(subjectId); // Track order of appearance
+                subjectOrder.add(subjectId);
+                
                 Map<String, String> rowMap = new HashMap<>();
-
                 for (int i = 0; i < headers.length; i++) {
                     String header = headers[i].trim();
                     String value = i < row.length ? row[i].trim() : "";
                     rowMap.put(header, value);
                 }
-
                 data.put(subjectId, rowMap);
             }
         }
         return new CsvData(data, columnMappings, subjectOrder);
+    }
+
+    private static Set<String> getCommonColumnsCaseInsensitive(CsvData d1, CsvData d2) {
+        Set<String> common = new HashSet<>(d1.columnMappings.keySet());
+        common.retainAll(d2.columnMappings.keySet());
+        common.remove(SUBJECT_ID);
+        return common;
     }
 
     static class CsvData {
@@ -112,6 +179,4 @@ public class CSVComparator {
             this.subjectOrder = subjectOrder;
         }
     }
-
-    // [Keep other helper methods unchanged]
 }
