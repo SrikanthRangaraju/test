@@ -1,93 +1,35 @@
-package starter.common.utilities;
-
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
-public class ReportConsolidator {
-    private static class CategoryData {
-        int count = 0;
-        Set<String> columns = new LinkedHashSet<>();
-    }
-
+public class SSIDCleaner {
     public static void main(String[] args) throws IOException {
-        Path folderPath = Paths.get("C:\\A\\Compare\\comso");
-        Path outputPath = folderPath.resolve("consolidated_report.txt");
-        Map<String, CategoryData> consolidated = new HashMap<>();
-        List<String> categoryOrder = Arrays.asList(
-            "100%", "99%", "90-98%", "80-89%", "70-79%", "Less than 70%"
-        );
-
-        // Initialize categories
-        for (String category : categoryOrder) {
-            consolidated.put(category, new CategoryData());
-        }
-
-        // Process all .txt files in the directory
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(folderPath, "*.txt")) {
-            for (Path file : stream) {
-                processFile(file, consolidated);
-            }
-        }
-
-        // Write consolidated report
-        writeReport(outputPath, consolidated, categoryOrder);
-    }
-
-    private static void processFile(Path file, Map<String, CategoryData> consolidated) {
-        try {
-            List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-            for (String line : lines) {
-                if (line.contains("column-matching%is")) {
-                    String[] parts = line.split(" ");
-                    String columnName = parts[0].trim();
-                    String percentageStr = parts[parts.length - 1]
-                        .replaceAll("[^0-9]", ""); // Remove non-numeric characters
-
-                    if (!percentageStr.isEmpty()) {
-                        int percentage = Integer.parseInt(percentageStr);
-                        categorizeColumn(columnName, percentage, consolidated);
+        // 1. Paths for input files
+        Path ssnIdsFile = Paths.get("path/to/your/ssn_ids.txt"); // Update this path
+        Path csvFolder = Paths.get("path/to/csv/folder"); // Update this path
+        
+        // 2. Read SSN IDs to delete from the .txt file
+        Set<String> ssnIdsToDelete = new HashSet<>(Files.readAllLines(ssnIdsFile));
+        
+        // 3. Process all CSV files in the folder
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(csvFolder, "*.csv")) {
+            for (Path csvFile : stream) {
+                // Read all lines from the CSV file
+                List<String> lines = Files.readAllLines(csvFile);
+                
+                // Filter out lines containing SSN IDs to delete
+                List<String> filteredLines = new ArrayList<>();
+                for (String line : lines) {
+                    if (!ssnIdsToDelete.contains(line.trim())) { // Check for match
+                        filteredLines.add(line);
                     }
                 }
+                
+                // Overwrite the original file with filtered data
+                Files.write(csvFile, filteredLines, StandardOpenOption.TRUNCATE_EXISTING);
+                System.out.println("Processed: " + csvFile.getFileName());
             }
-        } catch (IOException | NumberFormatException e) {
-            System.err.println("Error processing file: " + file.getFileName());
-            e.printStackTrace();
         }
-    }
-
-    private static void categorizeColumn(String columnName, int percentage, Map<String, CategoryData> consolidated) {
-        String category = determineCategory(percentage);
-        CategoryData data = consolidated.get(category);
-        data.count++;
-        data.columns.add(columnName);
-    }
-
-    private static String determineCategory(int percentage) {
-        if (percentage == 100) return "100%";
-        if (percentage >= 99) return "99%";
-        if (percentage >= 90) return "90-98%";
-        if (percentage >= 80) return "80-89%";
-        if (percentage >= 70) return "70-79%";
-        return "Less than 70%";
-    }
-
-    private static void writeReport(Path outputPath, Map<String, CategoryData> consolidated, List<String> categoryOrder) throws IOException {
-        List<String> reportLines = new ArrayList<>();
-        reportLines.add("Match Percentage Categories:");
-        reportLines.add("");
-
-        for (String category : categoryOrder) {
-            CategoryData data = consolidated.get(category);
-            reportLines.add(String.format("%s match >>>> %d", category, data.count));
-            if (!data.columns.isEmpty()) {
-                reportLines.add("Columns: " + String.join(",", data.columns));
-            }
-            reportLines.add("");
-        }
-
-        Files.write(outputPath, reportLines, StandardCharsets.UTF_8, StandardOpenOption.CREATE);
-        System.out.println("Report generated at: " + outputPath);
+        System.out.println("Cleanup complete!");
     }
 }
