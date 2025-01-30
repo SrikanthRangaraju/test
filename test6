@@ -1,182 +1,80 @@
-import com.opencsv.CSVReader;
-import com.opencsv.CSVWriter;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.util.*;
-import java.util.stream.Collectors;
 
-public class CSVComparator {
-    private static final String SUBJECT_ID = "subjectid";
-
-    public static void main(String[] args) {
-        String file1Path = "file1.csv";
-        String file2Path = "file2.csv";
-        String diffPath = "differences.csv";
-        String reportPath = "summary_report.txt";
-
-        try {
-            // Read both CSVs preserving original order
-            CsvData csvData1 = readCsv(file1Path);
-            CsvData csvData2 = readCsv(file2Path);
-            
-            // Get common columns (case-insensitive)
-            Set<String> commonColumns = getCommonColumnsCaseInsensitive(csvData1, csvData2);
-            
-            // Maintain original subject order: File1 subjects first, then File2
-            LinkedHashSet<String> orderedSubjects = new LinkedHashSet<>();
-            orderedSubjects.addAll(csvData1.subjectOrder);
-            orderedSubjects.addAll(csvData2.subjectOrder);
-
-            // Data structures for results
-            Map<String, int[]> columnStats = new HashMap<>();
-            List<String[]> differences = new ArrayList<>();
-
-            // Compare data
-            for (String subject : orderedSubjects) {
-                Map<String, String> row1 = csvData1.data.get(subject);
-                Map<String, String> row2 = csvData2.data.get(subject);
-
-                if (row1 == null || row2 == null) {
-                    System.out.println("Subject ID " + subject + " missing in one file");
-                    continue;
-                }
-
-                for (String lowerCol : commonColumns) {
-                    String col1 = csvData1.columnMappings.get(lowerCol);
-                    String col2 = csvData2.columnMappings.get(lowerCol);
-
-                    String value1 = row1.getOrDefault(col1, "MISSING");
-                    String value2 = row2.getOrDefault(col2, "MISSING");
-
-                    int[] counts = columnStats.computeIfAbsent(col1, k -> new int[2]);
-                    counts[1]++; // Total comparisons
-
-                    if (!value1.equals(value2)) {
-                        differences.add(new String[]{subject, col1, value1, value2});
-                    } else {
-                        counts[0]++; // Matches
-                    }
-                }
-            }
-
-            // Write differences.csv
-            try (CSVWriter writer = new CSVWriter(new FileWriter(diffPath))) {
-                writer.writeNext(new String[]{"SUBJECTID", "COLUMN_NAME", "FILE1_VALUE", "FILE2_VALUE"});
-                writer.writeAll(differences);
-            }
-
-            // Generate summary report
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportPath))) {
-                // Individual stats
-                writer.write("Column Matching Summary Report\n");
-                writer.write("===============================\n");
-                for (Map.Entry<String, int[]> entry : columnStats.entrySet()) {
-                    String col = entry.getKey();
-                    int matches = entry.getValue()[0];
-                    int total = entry.getValue()[1];
-                    double pct = total > 0 ? Math.round((matches * 10000.0 / total)) / 100.0 : 0.0;
-                    writer.write(String.format("%s - %.2f%% match (%d/%d)\n", 
-                        col, pct, matches, total));
-                }
-
-                // Categorized stats
-                Map<String, List<String>> categories = new LinkedHashMap<String, List<String>>() {{
-                    put("100% match", new ArrayList<>());
-                    put("99% match", new ArrayList<>());
-                    put("90-98% match", new ArrayList<>());
-                    put("80-89% match", new ArrayList<>());
-                    put("70-79% match", new ArrayList<>());
-                    put("<70% match", new ArrayList<>());
-                }};
-
-                columnStats.forEach((col, stats) -> {
-                    double pct = stats[1] > 0 ? (stats[0] * 100.0 / stats[1]) : 0;
-                    if (pct == 100) categories.get("100% match").add(col);
-                    else if (pct >= 99) categories.get("99% match").add(col);
-                    else if (pct >= 90) categories.get("90-98% match").add(col);
-                    else if (pct >= 80) categories.get("80-89% match").add(col);
-                    else if (pct >= 70) categories.get("70-79% match").add(col);
-                    else categories.get("<70% match").add(col);
-                });
-
-                writer.write("\nMatch Categories:\n");
-                writer.write("=================\n");
-                categories.forEach((category, columns) -> {
-                    try {
-                        writer.write(String.format("%s (%d columns):\n", 
-                            category, columns.size()));
-                        if (!columns.isEmpty()) {
-                            writer.write("  " + String.join(", ", columns) + "\n");
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                });
-            }
-
-            System.out.println("Process completed successfully");
-            System.out.println("Differences: " + diffPath);
-            System.out.println("Summary: " + reportPath);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+public class ReportConsolidator {
+    private static class CategoryData {
+        int count = 0;
+        Set<String> columns = new LinkedHashSet<>();
     }
 
-    private static CsvData readCsv(String path) throws Exception {
-        Map<String, Map<String, String>> data = new LinkedHashMap<>();
-        Map<String, String> columnMappings = new HashMap<>();
-        List<String> subjectOrder = new ArrayList<>();
+    public static void main(String[] args) throws IOException {
+        Path folderPath = Paths.get("path/to/your/folder"); // Update this path
+        Path outputPath = folderPath.resolve("consolidated_report.txt");
+        
+        Map<String, CategoryData> consolidated = new HashMap<>();
+        List<String> categoryOrder = Arrays.asList(
+            "100%", "99%", "90-98%", "80-89%", "70-79%", "Less than 70%"
+        );
 
-        try (CSVReader reader = new CSVReader(new FileReader(path))) {
-            String[] headers = reader.readNext();
-            if (headers == null) return new CsvData(data, columnMappings, subjectOrder);
-
-            // Process headers
-            for (String header : headers) {
-                String cleanHeader = header.trim();
-                String lowerHeader = cleanHeader.toLowerCase();
-                if (!columnMappings.containsKey(lowerHeader)) {
-                    columnMappings.put(lowerHeader, cleanHeader);
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(folderPath, "*.txt")) {
+            for (Path filePath : stream) {
+                if (Files.isRegularFile(filePath)) {
+                    processFile(filePath, consolidated);
                 }
             }
+        }
 
-            // Process rows
-            String[] row;
-            while ((row = reader.readNext()) != null) {
-                if (row.length == 0) continue;
-                String subjectId = row[0].trim();
-                subjectOrder.add(subjectId);
+        writeOutput(outputPath, consolidated, categoryOrder);
+        System.out.println("Consolidated report generated: " + outputPath);
+    }
+
+    private static void processFile(Path filePath, Map<String, CategoryData> consolidated) throws IOException {
+        String currentCategory = null;
+        
+        try (BufferedReader reader = Files.newBufferedReader(filePath, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
                 
-                Map<String, String> rowMap = new HashMap<>();
-                for (int i = 0; i < headers.length; i++) {
-                    String header = headers[i].trim();
-                    String value = i < row.length ? row[i].trim() : "";
-                    rowMap.put(header, value);
+                if (line.contains("% match >>>>")) {
+                    String[] parts = line.split(">>>>");
+                    String percentagePart = parts[0].split("%")[0].trim() + "%";
+                    int count = Integer.parseInt(parts[1].split("\\(")[0].trim());
+                    
+                    consolidated.putIfAbsent(percentagePart, new CategoryData());
+                    CategoryData data = consolidated.get(percentagePart);
+                    data.count += count;
+                    currentCategory = percentagePart;
+                } 
+                else if (line.startsWith("Columns:")) {
+                    if (currentCategory != null && consolidated.containsKey(currentCategory)) {
+                        String[] columns = line.split(":")[1].split(",");
+                        for (String col : columns) {
+                            consolidated.get(currentCategory).columns.add(col.trim());
+                        }
+                    }
                 }
-                data.put(subjectId, rowMap);
             }
         }
-        return new CsvData(data, columnMappings, subjectOrder);
     }
 
-    private static Set<String> getCommonColumnsCaseInsensitive(CsvData d1, CsvData d2) {
-        Set<String> common = new HashSet<>(d1.columnMappings.keySet());
-        common.retainAll(d2.columnMappings.keySet());
-        common.remove(SUBJECT_ID);
-        return common;
-    }
+    private static void writeOutput(Path outputPath, Map<String, CategoryData> consolidated, List<String> categoryOrder) 
+            throws IOException {
+        try (BufferedWriter writer = Files.newBufferedWriter(outputPath, StandardCharsets.UTF_8)) {
+            writer.write("Consolidated Match Percentage Report\n");
+            writer.write("====================================\n\n");
 
-    static class CsvData {
-        Map<String, Map<String, String>> data;
-        Map<String, String> columnMappings;
-        List<String> subjectOrder;
-
-        CsvData(Map<String, Map<String, String>> data, 
-                Map<String, String> columnMappings,
-                List<String> subjectOrder) {
-            this.data = data;
-            this.columnMappings = columnMappings;
-            this.subjectOrder = subjectOrder;
+            for (String category : categoryOrder) {
+                CategoryData data = consolidated.get(category);
+                if (data != null && data.count > 0) {
+                    writer.write(String.format("%s match >>>> %d\n", category, data.count));
+                    writer.write("Columns: " + String.join(", ", data.columns) + "\n\n");
+                }
+            }
+            
+            writer.write("\n=== End of Report ===");
         }
     }
 }
