@@ -1,4 +1,6 @@
-import java.io.*;
+package starter.common.utilities;
+
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -10,71 +12,82 @@ public class ReportConsolidator {
     }
 
     public static void main(String[] args) throws IOException {
-        Path folderPath = Paths.get("path/to/your/folder"); // Update this path
+        Path folderPath = Paths.get("C:\\A\\Compare\\comso");
         Path outputPath = folderPath.resolve("consolidated_report.txt");
-        
         Map<String, CategoryData> consolidated = new HashMap<>();
         List<String> categoryOrder = Arrays.asList(
             "100%", "99%", "90-98%", "80-89%", "70-79%", "Less than 70%"
         );
 
+        // Initialize categories
+        for (String category : categoryOrder) {
+            consolidated.put(category, new CategoryData());
+        }
+
+        // Process all .txt files in the directory
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(folderPath, "*.txt")) {
-            for (Path filePath : stream) {
-                if (Files.isRegularFile(filePath)) {
-                    processFile(filePath, consolidated);
-                }
+            for (Path file : stream) {
+                processFile(file, consolidated);
             }
         }
 
-        writeOutput(outputPath, consolidated, categoryOrder);
-        System.out.println("Consolidated report generated: " + outputPath);
+        // Write consolidated report
+        writeReport(outputPath, consolidated, categoryOrder);
     }
 
-    private static void processFile(Path filePath, Map<String, CategoryData> consolidated) throws IOException {
-        String currentCategory = null;
-        
-        try (BufferedReader reader = Files.newBufferedReader(filePath, StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                
-                if (line.contains("% match >>>>")) {
-                    String[] parts = line.split(">>>>");
-                    String percentagePart = parts[0].split("%")[0].trim() + "%";
-                    int count = Integer.parseInt(parts[1].split("\\(")[0].trim());
-                    
-                    consolidated.putIfAbsent(percentagePart, new CategoryData());
-                    CategoryData data = consolidated.get(percentagePart);
-                    data.count += count;
-                    currentCategory = percentagePart;
-                } 
-                else if (line.startsWith("Columns:")) {
-                    if (currentCategory != null && consolidated.containsKey(currentCategory)) {
-                        String[] columns = line.split(":")[1].split(",");
-                        for (String col : columns) {
-                            consolidated.get(currentCategory).columns.add(col.trim());
-                        }
+    private static void processFile(Path file, Map<String, CategoryData> consolidated) {
+        try {
+            List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            for (String line : lines) {
+                if (line.contains("column-matching%is")) {
+                    String[] parts = line.split(" ");
+                    String columnName = parts[0].trim();
+                    String percentageStr = parts[parts.length - 1]
+                        .replaceAll("[^0-9]", ""); // Remove non-numeric characters
+
+                    if (!percentageStr.isEmpty()) {
+                        int percentage = Integer.parseInt(percentageStr);
+                        categorizeColumn(columnName, percentage, consolidated);
                     }
                 }
             }
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("Error processing file: " + file.getFileName());
+            e.printStackTrace();
         }
     }
 
-    private static void writeOutput(Path outputPath, Map<String, CategoryData> consolidated, List<String> categoryOrder) 
-            throws IOException {
-        try (BufferedWriter writer = Files.newBufferedWriter(outputPath, StandardCharsets.UTF_8)) {
-            writer.write("Consolidated Match Percentage Report\n");
-            writer.write("====================================\n\n");
+    private static void categorizeColumn(String columnName, int percentage, Map<String, CategoryData> consolidated) {
+        String category = determineCategory(percentage);
+        CategoryData data = consolidated.get(category);
+        data.count++;
+        data.columns.add(columnName);
+    }
 
-            for (String category : categoryOrder) {
-                CategoryData data = consolidated.get(category);
-                if (data != null && data.count > 0) {
-                    writer.write(String.format("%s match >>>> %d\n", category, data.count));
-                    writer.write("Columns: " + String.join(", ", data.columns) + "\n\n");
-                }
+    private static String determineCategory(int percentage) {
+        if (percentage == 100) return "100%";
+        if (percentage >= 99) return "99%";
+        if (percentage >= 90) return "90-98%";
+        if (percentage >= 80) return "80-89%";
+        if (percentage >= 70) return "70-79%";
+        return "Less than 70%";
+    }
+
+    private static void writeReport(Path outputPath, Map<String, CategoryData> consolidated, List<String> categoryOrder) throws IOException {
+        List<String> reportLines = new ArrayList<>();
+        reportLines.add("Match Percentage Categories:");
+        reportLines.add("");
+
+        for (String category : categoryOrder) {
+            CategoryData data = consolidated.get(category);
+            reportLines.add(String.format("%s match >>>> %d", category, data.count));
+            if (!data.columns.isEmpty()) {
+                reportLines.add("Columns: " + String.join(",", data.columns));
             }
-            
-            writer.write("\n=== End of Report ===");
+            reportLines.add("");
         }
+
+        Files.write(outputPath, reportLines, StandardCharsets.UTF_8, StandardOpenOption.CREATE);
+        System.out.println("Report generated at: " + outputPath);
     }
 }
