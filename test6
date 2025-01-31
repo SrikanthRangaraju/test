@@ -1,35 +1,16 @@
-import java.io.IOException;
-import java.nio.file.*;
-import java.util.*;
-
-public class SSIDCleaner {
-    public static void main(String[] args) throws IOException {
-        // 1. Paths for input files
-        Path ssnIdsFile = Paths.get("path/to/your/ssn_ids.txt"); // Update this path
-        Path csvFolder = Paths.get("path/to/csv/folder"); // Update this path
-        
-        // 2. Read SSN IDs to delete from the .txt file
-        Set<String> ssnIdsToDelete = new HashSet<>(Files.readAllLines(ssnIdsFile));
-        
-        // 3. Process all CSV files in the folder
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(csvFolder, "*.csv")) {
-            for (Path csvFile : stream) {
-                // Read all lines from the CSV file
-                List<String> lines = Files.readAllLines(csvFile);
-                
-                // Filter out lines containing SSN IDs to delete
-                List<String> filteredLines = new ArrayList<>();
-                for (String line : lines) {
-                    if (!ssnIdsToDelete.contains(line.trim())) { // Check for match
-                        filteredLines.add(line);
-                    }
-                }
-                
-                // Overwrite the original file with filtered data
-                Files.write(csvFile, filteredLines, StandardOpenOption.TRUNCATE_EXISTING);
-                System.out.println("Processed: " + csvFile.getFileName());
-            }
-        }
-        System.out.println("Cleanup complete!");
-    }
-}
+SELECT 
+    t1.Name AS Employee_Name,
+    t1.Age AS Employee_Age,
+    t2.Salary AS Employee_Salary,
+    t2.Position AS Job_Position,
+    t3.Department AS Work_Department
+FROM 
+    Table1 t1
+INNER JOIN 
+    Table2 t2 ON t1.SSNID = t2.SSNID
+INNER JOIN 
+    Table3 t3 ON t1.SSNID = t3.SSNID
+WHERE 
+    t1.Date = '2023' 
+    AND t2.Date = '2023' 
+    AND t3.Date = '2023';
