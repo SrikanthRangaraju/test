@@ -1,22 +1,17 @@
-WITH
-  filtered_chile_bic AS (SELECT rut FROM chile_bic WHERE date = 202311),
-  filtered_chile_mcc AS (SELECT rut FROM chile_mcc WHERE date = 202311),
-  filtered_chile_mtu AS (SELECT rut FROM chile_mtu WHERE date = 202311),
-  filtered_attr_bic AS (
-    SELECT rut, bic_cant_doc_3um 
-    FROM attr_bic 
-    WHERE date = 202311
-  ),
-  filtered_attr_mcc AS (
-    SELECT rut, mcc_cant_doc_3um, mcc_avg_monto, mcc_max_monto 
-    FROM attr_mcc 
-    WHERE date = 202311
-  ),
-  filtered_attr_mtu AS (
-    SELECT rut, mtu_cant_doc_3um 
-    FROM attr_mtu 
-    WHERE date = 202311
-  )
+WITH common_ruts AS (
+  -- Get RUTs present in ALL 6 tables for the date 202311
+  SELECT rut FROM chile_bic WHERE date = 202311
+  INTERSECT
+  SELECT rut FROM chile_mcc WHERE date = 202311
+  INTERSECT
+  SELECT rut FROM chile_mtu WHERE date = 202311
+  INTERSECT
+  SELECT rut FROM attr_bic WHERE date = 202311
+  INTERSECT
+  SELECT rut FROM attr_mcc WHERE date = 202311
+  INTERSECT
+  SELECT rut FROM attr_mtu WHERE date = 202311
+)
 
 SELECT
   ab.bic_cant_doc_3um,
@@ -24,9 +19,13 @@ SELECT
   am.mcc_avg_monto,
   am.mcc_max_monto,
   amt.mtu_cant_doc_3um
-FROM filtered_chile_bic cb
-INNER JOIN filtered_chile_mcc cm ON cb.rut = cm.rut
-INNER JOIN filtered_chile_mtu cmt ON cb.rut = cmt.rut
-INNER JOIN filtered_attr_bic ab ON cb.rut = ab.rut
-INNER JOIN filtered_attr_mcc am ON cb.rut = am.rut
-INNER JOIN filtered_attr_mtu amt ON cb.rut = amt.rut;
+FROM common_ruts cr
+JOIN attr_bic ab 
+  ON cr.rut = ab.rut 
+  AND ab.date = 202311  -- Filter attr_bic by date
+JOIN attr_mcc am 
+  ON cr.rut = am.rut 
+  AND am.date = 202311  -- Filter attr_mcc by date
+JOIN attr_mtu amt 
+  ON cr.rut = amt.rut 
+  AND amt.date = 202311; -- Filter attr_mtu by date
