@@ -1,16 +1,19 @@
 SELECT 
-    t1.Name AS Employee_Name,
-    t1.Age AS Employee_Age,
-    t2.Salary AS Employee_Salary,
-    t2.Position AS Job_Position,
-    t3.Department AS Work_Department
+    a.rut,
+    a.bic_cant_doc_3um,
+    a.ddmo_bic,
+    b.mtu_cant_doc_3um,
+    b.ddm0_mtu
 FROM 
-    Table1 t1
+    attr_bic a
 INNER JOIN 
-    Table2 t2 ON t1.SSNID = t2.SSNID
+    attr_mtu b ON a.rut = b.rut
 INNER JOIN 
-    Table3 t3 ON t1.SSNID = t3.SSNID
+    chile_bic c ON a.rut = c.rut
+INNER JOIN 
+    chile_mtu d ON a.rut = d.rut
 WHERE 
-    t1.Date = '2023' 
-    AND t2.Date = '2023' 
-    AND t3.Date = '2023';
+    a.date = 202311 
+    AND b.date = 202311
+    AND c.date = 202311
+    AND d.date = 202311;
