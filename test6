@@ -1,32 +1,33 @@
-WITH common_ruts AS (
+WITH Common_ruts AS (
   -- Get RUTs present in ALL 6 tables for camada = 202311
-  SELECT rut FROM chile_bic WHERE camada = 202311
+  SELECT rut FROM attr_score WHERE camada = 202311
   INTERSECT
-  SELECT rut FROM chile_mcc WHERE camada = 202311
+  SELECT rut FROM chile_ruta WHERE camada = 202311
   INTERSECT
-  SELECT rut FROM chile_mtu WHERE camada = 202311
+  SELECT rut FROM chile_per WHERE camada = 202311
   INTERSECT
-  SELECT rut FROM attr_bic WHERE camada = 202311
+  SELECT rut FROM chile_bra WHERE camada = 202311
   INTERSECT
-  SELECT rut FROM attr_mcc WHERE camada = 202311
+  SELECT rut FROM attr_personas WHERE camada = 202311
   INTERSECT
-  SELECT rut FROM attr_mtu WHERE camada = 202311
+  SELECT rut FROM attr_bra WHERE camada = 202311
 )
-
 SELECT
-  cr.rut,  -- Distinct RUT from the common set
-  ab.bic_cant_doc_3um,
-  am.mcc_cant_doc_3um,
-  am.mcc_avg_monto,
-  am.mcc_max_monto,
-  amt.mtu_cant_doc_3um
-FROM common_ruts cr
-JOIN attr_bic ab 
-  ON cr.rut = ab.rut 
-  AND ab.camada = 202311  -- Filter by camada
-JOIN attr_mcc am 
-  ON cr.rut = am.rut 
-  AND am.camada = 202311  -- Filter by camada
-JOIN attr_mtu amt 
-  ON cr.rut = amt.rut 
-  AND amt.camada = 202311; -- Filter by camada
+  cr.rut,
+  a.mes_0,
+  a.mes_6,
+  a.mes_12,
+  a.mean_score_7m,
+  a.mean_score_13m,
+  p.profesion,
+  p.edad,
+  b.suma_avaluo,
+  b.total_avaluo_uf
+FROM Common_ruts cr
+-- Join tables with required columns
+JOIN attr_score a 
+  ON cr.rut = a.rut AND a.camada = 202311
+JOIN attr_personas p 
+  ON cr.rut = p.rut AND p.camada = 202311
+JOIN attr_bra b 
+  ON cr.rut = b.rut AND b.camada = 202311;
