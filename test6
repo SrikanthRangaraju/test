@@ -1,19 +1,26 @@
 SELECT 
     a.rut,
-    a.bic_cant_doc_3um,
-    a.ddmo_bic,
-    b.mtu_cant_doc_3um,
-    b.ddm0_mtu
+    ab.bic_cant_doc_3um,
+    am.mcc_cant_doc_3um,
+    am.mcc_avg_monto,
+    am.mcc_max_monto,
+    amtu.mtu_cant_doc_3um
 FROM 
-    attr_bic a
+    attr_bic ab
 INNER JOIN 
-    attr_mtu b ON a.rut = b.rut
+    attr_mcc am ON ab.rut = am.rut
 INNER JOIN 
-    chile_bic c ON a.rut = c.rut
+    attr_mtu amtu ON ab.rut = amtu.rut
 INNER JOIN 
-    chile_mtu d ON a.rut = d.rut
+    chile_bic cb ON ab.rut = cb.rut
+INNER JOIN 
+    chile_mcc cm ON ab.rut = cm.rut
+INNER JOIN 
+    chile_mtu cmtu ON ab.rut = cmtu.rut
 WHERE 
-    a.date = 202311 
-    AND b.date = 202311
-    AND c.date = 202311
-    AND d.date = 202311;
+    ab.date = 202311
+    AND am.date = 202311
+    AND amtu.date = 202311
+    AND cb.date = 202311
+    AND cm.date = 202311
+    AND cmtu.date = 202311;
