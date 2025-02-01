@@ -1,33 +1,71 @@
-WITH Common_ruts AS (
-  -- Get RUTs present in ALL 6 tables for camada = 202311
-  SELECT rut FROM attr_score WHERE camada = 202311
-  INTERSECT
-  SELECT rut FROM chile_ruta WHERE camada = 202311
-  INTERSECT
-  SELECT rut FROM chile_per WHERE camada = 202311
-  INTERSECT
-  SELECT rut FROM chile_bra WHERE camada = 202311
-  INTERSECT
-  SELECT rut FROM attr_personas WHERE camada = 202311
-  INTERSECT
-  SELECT rut FROM attr_bra WHERE camada = 202311
-)
-SELECT
-  cr.rut,
-  a.mes_0,
-  a.mes_6,
-  a.mes_12,
-  a.mean_score_7m,
-  a.mean_score_13m,
-  p.profesion,
-  p.edad,
-  b.suma_avaluo,
-  b.total_avaluo_uf
-FROM Common_ruts cr
--- Join tables with required columns
-JOIN attr_score a 
-  ON cr.rut = a.rut AND a.camada = 202311
-JOIN attr_personas p 
-  ON cr.rut = p.rut AND p.camada = 202311
-JOIN attr_bra b 
-  ON cr.rut = b.rut AND b.camada = 202311;
+#!/bin/bash
+
+nohup bash -c 'while read -r line; do
+  echo "Processing line: $line"
+  rut="$(cut -d"," -f1 <<<"$line")"
+  dv="$(cut -d"," -f2 <<<"$line")"
+
+  attempt=0
+  success=false
+
+  while [ $attempt -lt 3 ]; do
+    # Run the gRPC call
+    grpcurl -emit-defaults -d "{
+      \"rut\": \"$rut\",
+      \"dv\": \"$dv\",
+      \"period\": \"true\",
+      \"segments\": [
+        \"GENERAL\",
+        \"SUMMARY\",
+        \"BIENESRAICES\",
+        \"DIRECCIONES\",
+        \"ACTIVIDAD ECONOMICA\",
+        \"DETALLE PROTESTOS MOROSIDAD\",
+        \"REGULATED DATA\",
+        \"CONTACTO EMPRESA\",
+        \"MOROSIDADES BIC MAPPING\",
+        \"RUT MAPPING\",
+        \"CONSULTAS RUTMAPPING\",
+        \"QUIEBRAS\",
+        \"SOCIOSOCIEDADES\",
+        \"TELEFONO\",
+        \"VEHICULOS\",
+        \"PRE CALCULATED ATTRIBUTES REGULATED\",
+        \"PRE CALCULATED ATTRIBUTES NONREGULATED\",
+        \"SABOE\",
+        \"SABCDE\",
+        \"SAMCDEN\",
+        \"SADDRIN\",
+        \"PERDAS LIST\",
+        \"CHILE AUT\",
+        \"CHILE GIROS\",
+        \"CHILE RRCC\",
+        \"CHILE MAIL\",
+        \"CHILE MCC\",
+        \"CHILE PER\",
+        \"CHILE DIR\",
+        \"CHILE MTU\",
+        \"CHILE BRA\",
+        \"CHILE BIC\",
+        \"CHILE RELPAR\",
+        \"CHILE RUTAN\",
+        \"ANOTACIONES DATA DETALLE\"
+      ],
+      \"monitoringDate\": \"20231130\"
+    }" -insecure localhost:22022 com.chile.grpc.getData.model.GetDataService/getData > RutResponse/$rut.json
+
+    # Check if the gRPC call was successful
+    if [ $? -eq 0 ]; then
+      success=true
+      break
+    else
+      echo "Attempt $((attempt + 1)) for $rut failed. Retrying..."
+      attempt=$((attempt + 1))
+      sleep 2
+    fi
+  done
+
+  if [ "$success" = false ]; then
+    echo "Failed to process $rut after 3 attempts." >> failed_lines.txt
+  fi
+done < testData.txt > output.log 2>&1 &'
