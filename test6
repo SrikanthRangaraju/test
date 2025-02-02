@@ -1,78 +1,78 @@
-nohup bash -c 'while read -r line; do
-  echo "Processing line: $line"
-  rut="$(cut -d"," -f1 <<<"$line")"
-  dv="$(cut -d"," -f2 <<<"$line")"
+import java.io.*;
+import java.util.*;
 
-  attempt=0
-  success=false
+public class CompareCSV {
+    public static void main(String[] args) {
+        String actualFile = "ActualOutput.csv";
+        String baselineFile = "BaselineOutput.csv";
+        String outputLog = "outputSummary.log";
+        
+        // Define the Set to Attribute Map
+        Map<String, List<String>> setAttributeMap = new HashMap<>();
+        setAttributeMap.put("Set1", Arrays.asList("MES6", "MES12"));
+        setAttributeMap.put("Set2", Arrays.asList("BUCKET", "DDM0_BIC"));
+        
+        try (BufferedReader actualReader = new BufferedReader(new FileReader(actualFile));
+             BufferedReader baselineReader = new BufferedReader(new FileReader(baselineFile));
+             BufferedWriter outputWriter = new BufferedWriter(new FileWriter(outputLog))) {
 
-  while [ $attempt -lt 3 ]; do
-    echo "Attempt $((attempt + 1)) for RUT: $rut"
+            // Read headers for both files
+            String actualHeader = actualReader.readLine();
+            String baselineHeader = baselineReader.readLine();
+            List<String> actualColumns = Arrays.asList(actualHeader.split(";"));
+            List<String> baselineColumns = Arrays.asList(baselineHeader.split(";"));
 
-    # Call the gRPC service and store the response in a temporary file
-    grpcurl -emit-defaults -d "{
-      \"rut\": \"$rut\",
-      \"dv\": \"$dv\",
-      \"period\": \"true\",
-      \"segments\": [
-        \"GENERAL\",
-        \"SUMMARY\",
-        \"BIENESRAICES\",
-        \"DIRECCIONES\",
-        \"ACTIVIDAD ECONOMICA\",
-        \"DETALLE PROTESTOS MOROSIDAD\",
-        \"REGULATED DATA\",
-        \"CONTACTO EMPRESA\",
-        \"MOROSIDADES BIC MAPPING\",
-        \"RUT MAPPING\",
-        \"CONSULTAS RUTMAPPING\",
-        \"QUIEBRAS\",
-        \"SOCIOSOCIEDADES\",
-        \"TELEFONO\",
-        \"VEHICULOS\",
-        \"PRE CALCULATED ATTRIBUTES REGULATED\",
-        \"PRE CALCULATED ATTRIBUTES NONREGULATED\",
-        \"SABOE\",
-        \"SABCDE\",
-        \"SAMCDEN\",
-        \"SADDRIN\",
-        \"PERDAS LIST\",
-        \"CHILE AUT\",
-        \"CHILE GIROS\",
-        \"CHILE RRCC\",
-        \"CHILE MAIL\",
-        \"CHILE MCC\",
-        \"CHILE PER\",
-        \"CHILE DIR\",
-        \"CHILE MTU\",
-        \"CHILE BRA\",
-        \"CHILE BIC\",
-        \"CHILE RELPAR\",
-        \"CHILE RUTAN\",
-        \"ANOTACIONES DATA DETALLE\"
-      ],
-      \"monitoringDate\": \"20231130\"
-    }" -insecure localhost:22022 com.chile.grpc.getData.model.GetDataService/getData > "RutResponse/$rut.json" 2>> grpc_errors.log
+            // Store actual data in a map for quick lookup
+            Map<String, String[]> actualData = new HashMap<>();
+            String line;
+            
+            while ((line = actualReader.readLine()) != null) {
+                String[] parts = line.split(";");
+                actualData.put(parts[0], parts);
+            }
 
-    # Check if the gRPC command succeeded
-    if [ $? -eq 0 ]; then
-      # Check the response content for error codes
-      if grep -q "\"response_code\":500" "RutResponse/$rut.json"; then
-        echo "gRPC response indicates failure for $rut. Retrying..." >> grpc_errors.log
-      else
-        echo "gRPC call succeeded with valid response for $rut"
-        success=true
-        break
-      fi
-    else
-      echo "gRPC call failed for $rut. Retrying..." >> grpc_errors.log
-    fi
-
-    attempt=$((attempt + 1))
-    sleep 2
-  done
-
-  if [ "$success" = false ]; then
-    echo "Failed to process $rut after 3 attempts." >> failed_lines.txt
-  fi
-done < testData.txt > output.log 2>&1 &'
+            // Process each line in the baseline file
+            while ((line = baselineReader.readLine()) != null) {
+                String[] parts = line.split(";");
+                String subjectId = parts[0];
+                String setKey = parts[parts.length - 1];
+                List<String> attributes = setAttributeMap.get(setKey);
+                if (attributes == null) continue;
+                
+                String[] actualValues = actualData.get(subjectId);
+                if (actualValues == null) continue;
+                
+                boolean match = true;
+                List<String> mismatchedCols = new ArrayList<>();
+                int attributeCount = attributes.size();
+                int matchedAttributes = 0;
+                
+                for (String attr : attributes) {
+                    int actualIndex = actualColumns.indexOf(attr);
+                    int baselineIndex = baselineColumns.indexOf(attr);
+                    if (actualIndex == -1 || baselineIndex == -1) continue;
+                    
+                    String actualValue = actualValues[actualIndex].trim();
+                    String baselineValue = parts[baselineIndex].trim();
+                    
+                    if (actualValue.equals(baselineValue)) {
+                        matchedAttributes++;
+                    } else {
+                        match = false;
+                        mismatchedCols.add(attr);
+                    }
+                }
+                
+                int matchPercentage = (int) ((matchedAttributes / (double) attributeCount) * 100);
+                if (match) {
+                    outputWriter.write("Subject Id " + subjectId + ":- " + setKey + " Match 100%\n");
+                } else {
+                    outputWriter.write("Subject Id " + subjectId + ":- " + setKey + " Don't match (" + String.join(", ", mismatchedCols) + ") - " + matchPercentage + "% match\n");
+                }
+            }
+            
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
