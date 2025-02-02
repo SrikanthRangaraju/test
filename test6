@@ -1,20 +1,28 @@
 #!/bin/bash
 
-# Directory containing JSON files
-input_dir="RutResponse"
-output_dir="ProcessedResponse"
+# Define the directory containing JSON files
+input_dir="path/to/json/files" # Replace with the actual directory path
 
-# Create the output directory if it doesn't exist
-mkdir -p "$output_dir"
-
-# Process each JSON file in the input directory
+# Iterate over all `.json` files in the directory
 for file in "$input_dir"/*.json; do
   # Check if the file exists and is not empty
   if [ -s "$file" ]; then
-    # Process the JSON file and save it to the output directory
-    sed '1d;$d;s/"response": {//' "$file" > "$output_dir/$(basename "$file")"
-    echo "Processed: $(basename "$file")"
+    echo "Processing file: $file"
+
+    # Use awk to process the file
+    awk '
+      NR > 1 { prev = $0 } # Store the current line, skipping the first
+      NR > 2 { print prev } # Print the previous line, skipping the last
+      END { print prev } # Print the second-to-last line at the end
+    ' "$file" | sed 's/"response": {/{/' > "$file.tmp"
+
+    # Replace the original file with the processed file
+    mv "$file.tmp" "$file"
+
+    echo "Processed file: $file"
   else
-    echo "Skipping empty file: $(basename "$file")"
+    echo "Skipping empty file: $file"
   fi
 done
+
+echo "All files processed."
