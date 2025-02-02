@@ -1,78 +1,20 @@
-import java.io.*;
-import java.util.*;
+#!/bin/bash
 
-public class CompareCSV {
-    public static void main(String[] args) {
-        String actualFile = "ActualOutput.csv";
-        String baselineFile = "BaselineOutput.csv";
-        String outputLog = "outputSummary.log";
-        
-        // Define the Set to Attribute Map
-        Map<String, List<String>> setAttributeMap = new HashMap<>();
-        setAttributeMap.put("Set1", Arrays.asList("MES6", "MES12"));
-        setAttributeMap.put("Set2", Arrays.asList("BUCKET", "DDM0_BIC"));
-        
-        try (BufferedReader actualReader = new BufferedReader(new FileReader(actualFile));
-             BufferedReader baselineReader = new BufferedReader(new FileReader(baselineFile));
-             BufferedWriter outputWriter = new BufferedWriter(new FileWriter(outputLog))) {
+# Directory containing JSON files
+input_dir="RutResponse"
+output_dir="ProcessedResponse"
 
-            // Read headers for both files
-            String actualHeader = actualReader.readLine();
-            String baselineHeader = baselineReader.readLine();
-            List<String> actualColumns = Arrays.asList(actualHeader.split(";"));
-            List<String> baselineColumns = Arrays.asList(baselineHeader.split(";"));
+# Create the output directory if it doesn't exist
+mkdir -p "$output_dir"
 
-            // Store actual data in a map for quick lookup
-            Map<String, String[]> actualData = new HashMap<>();
-            String line;
-            
-            while ((line = actualReader.readLine()) != null) {
-                String[] parts = line.split(";");
-                actualData.put(parts[0], parts);
-            }
-
-            // Process each line in the baseline file
-            while ((line = baselineReader.readLine()) != null) {
-                String[] parts = line.split(";");
-                String subjectId = parts[0];
-                String setKey = parts[parts.length - 1];
-                List<String> attributes = setAttributeMap.get(setKey);
-                if (attributes == null) continue;
-                
-                String[] actualValues = actualData.get(subjectId);
-                if (actualValues == null) continue;
-                
-                boolean match = true;
-                List<String> mismatchedCols = new ArrayList<>();
-                int attributeCount = attributes.size();
-                int matchedAttributes = 0;
-                
-                for (String attr : attributes) {
-                    int actualIndex = actualColumns.indexOf(attr);
-                    int baselineIndex = baselineColumns.indexOf(attr);
-                    if (actualIndex == -1 || baselineIndex == -1) continue;
-                    
-                    String actualValue = actualValues[actualIndex].trim();
-                    String baselineValue = parts[baselineIndex].trim();
-                    
-                    if (actualValue.equals(baselineValue)) {
-                        matchedAttributes++;
-                    } else {
-                        match = false;
-                        mismatchedCols.add(attr);
-                    }
-                }
-                
-                int matchPercentage = (int) ((matchedAttributes / (double) attributeCount) * 100);
-                if (match) {
-                    outputWriter.write("Subject Id " + subjectId + ":- " + setKey + " Match 100%\n");
-                } else {
-                    outputWriter.write("Subject Id " + subjectId + ":- " + setKey + " Don't match (" + String.join(", ", mismatchedCols) + ") - " + matchPercentage + "% match\n");
-                }
-            }
-            
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-}
+# Process each JSON file in the input directory
+for file in "$input_dir"/*.json; do
+  # Check if the file exists and is not empty
+  if [ -s "$file" ]; then
+    # Process the JSON file and save it to the output directory
+    sed '1d;$d;s/"response": {//' "$file" > "$output_dir/$(basename "$file")"
+    echo "Processed: $(basename "$file")"
+  else
+    echo "Skipping empty file: $(basename "$file")"
+  fi
+done
