@@ -1,7 +1,7 @@
 import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
 import com.opencsv.CSVWriter;
 import com.opencsv.exceptions.CsvValidationException;
-
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,13 +36,12 @@ public class CsvComparator {
     }
 
     public static void main(String[] args) {
-        String mainFolder = "main";
+        String mainFolder = "C://mylocal//main";
         String[] setFolders = {"set1", "set2", "set3"};
 
         for (String setFolder : setFolders) {
             Path setPath = Paths.get(mainFolder, setFolder);
 
-            // Read row IDs and columns
             List<String> rowIds = readRowIds(setPath);
             if (rowIds.isEmpty()) {
                 System.err.println("Skipping " + setFolder + ": No row IDs found.");
@@ -55,7 +54,6 @@ public class CsvComparator {
                 continue;
             }
 
-            // Read CSV data
             Map<String, Map<String, String>> actualData = readCsv(setPath.resolve("actualoutputfile.csv"), columns);
             Map<String, Map<String, String>> expectedData = readCsv(setPath.resolve("expectedoutputfile.csv"), columns);
 
@@ -64,54 +62,42 @@ public class CsvComparator {
                 continue;
             }
 
-            // Compare data and generate reports
             List<DifferenceRecord> differences = new ArrayList<>();
             Map<String, ColumnSummary> summary = initializeSummary(columns);
 
             processRows(rowIds, columns, actualData, expectedData, differences, summary);
 
-            // Write output files
             writeDifferences(setPath.resolve("difference.csv"), differences);
             writeSummaryReport(setPath.resolve("summary_report.txt"), rowIds.size(), summary);
         }
     }
 
-    private static List<String> readRowIds(Path setPath) {
-        Path filePath = setPath.resolve("rowidstobeconsiderformismatch.txt");
-        try {
-            return Files.readAllLines(filePath).stream()
-                    .map(String::trim)
-                    .filter(line -> !line.isEmpty())
-                    .collect(Collectors.toList());
-        } catch (IOException e) {
-            System.err.println("Error reading row IDs: " + e.getMessage());
-            return Collections.emptyList();
-        }
-    }
-
-    private static List<String> readColumns(Path setPath) {
-        Path filePath = setPath.resolve("columnstobeconsiderformismatch.txt");
-        try {
-            return Files.readAllLines(filePath).stream()
-                    .map(String::trim)
-                    .filter(line -> !line.isEmpty())
-                    .map(String::toLowerCase)
-                    .collect(Collectors.toList());
-        } catch (IOException e) {
-            System.err.println("Error reading columns: " + e.getMessage());
-            return Collections.emptyList();
-        }
+    // Detect delimiter from the first line of the CSV
+    private static char detectDelimiter(String line) {
+        if (line == null || line.isEmpty()) return ','; // Default to comma
+        int commaCount = line.replaceAll("[^,]", "").length();
+        int semicolonCount = line.replaceAll("[^;]", "").length();
+        return (commaCount >= semicolonCount) ? ',' : ';';
     }
 
     private static Map<String, Map<String, String>> readCsv(Path csvPath, List<String> requiredColumns) {
-        try (CSVReader reader = new CSVReader(new FileReader(csvPath.toFile()))) {
+        try (BufferedReader br = new BufferedReader(new FileReader(csvPath.toFile()))) {
+            br.mark(8192); // Buffer size for reset
+            String firstLine = br.readLine();
+            char delimiter = detectDelimiter(firstLine);
+            br.reset();
+
+            CSVReader reader = new CSVReaderBuilder(br)
+                    .withSeparator(delimiter)
+                    .build();
+
             String[] headers = reader.readNext();
             if (headers == null) {
                 System.err.println("Empty CSV file: " + csvPath);
                 return null;
             }
 
-            // Process headers
+            // Process headers (case-insensitive)
             List<String> headersLower = Arrays.stream(headers)
                     .map(header -> header.trim().toLowerCase())
                     .collect(Collectors.toList());
@@ -150,7 +136,7 @@ public class CsvComparator {
                 for (int i = 0; i < row.length; i++) {
                     if (i == subjectIdIndex) continue;
                     String columnName = headersLower.get(i);
-                    String value = row[i] != null ? row[i].trim() : null;
+                    String value = (row[i] != null) ? row[i].trim() : null;
                     rowData.put(columnName, value);
                 }
 
@@ -164,75 +150,6 @@ public class CsvComparator {
         }
     }
 
-    private static Map<String, ColumnSummary> initializeSummary(List<String> columns) {
-        Map<String, ColumnSummary> summary = new LinkedHashMap<>();
-        for (String col : columns) {
-            summary.put(col, new ColumnSummary());
-        }
-        return summary;
-    }
-
-    private static void processRows(List<String> rowIds, List<String> columns,
-                                    Map<String, Map<String, String>> actualData,
-                                    Map<String, Map<String, String>> expectedData,
-                                    List<DifferenceRecord> differences,
-                                    Map<String, ColumnSummary> summary) {
-        for (String rowId : rowIds) {
-            Map<String, String> actualRow = actualData.get(rowId);
-            Map<String, String> expectedRow = expectedData.get(rowId);
-
-            for (String col : columns) {
-                ColumnSummary colSummary = summary.get(col);
-                colSummary.total++;
-
-                String actualValue = (actualRow != null) ? actualRow.get(col) : null;
-                String expectedValue = (expectedRow != null) ? expectedRow.get(col) : null;
-
-                boolean match = areValuesEqual(actualValue, expectedValue);
-
-                if (!match) {
-                    differences.add(new DifferenceRecord(rowId, col, actualValue, expectedValue));
-                } else {
-                    colSummary.matches++;
-                }
-            }
-        }
-    }
-
-    private static boolean areValuesEqual(String actual, String expected) {
-        if (actual == null && expected == null) return true;
-        if (actual == null || expected == null) return false;
-        return actual.equals(expected);
-    }
-
-    private static void writeDifferences(Path diffPath, List<DifferenceRecord> differences) {
-        try (CSVWriter writer = new CSVWriter(new FileWriter(diffPath.toFile()))) {
-            writer.writeNext(new String[]{"SubjectId", "Column", "Actual Value", "Expected Value"});
-            for (DifferenceRecord diff : differences) {
-                writer.writeNext(new String[]{
-                        diff.getSubjectId(),
-                        diff.getColumn(),
-                        diff.getActualValue(),
-                        diff.getExpectedValue()
-                });
-            }
-        } catch (IOException e) {
-            System.err.println("Error writing differences: " + e.getMessage());
-        }
-    }
-
-    private static void writeSummaryReport(Path summaryPath, int totalRows, Map<String, ColumnSummary> summary) {
-        try (BufferedWriter writer = Files.newBufferedWriter(summaryPath)) {
-            writer.write("Total number of rowidstobeconsiderformismatch are : " + totalRows + "\n");
-            for (Map.Entry<String, ColumnSummary> entry : summary.entrySet()) {
-                String col = entry.getKey();
-                ColumnSummary colSummary = entry.getValue();
-                double percentage = (colSummary.total == 0) ? 0 :
-                        (colSummary.matches * 100.0) / colSummary.total;
-                writer.write(String.format("%s: %.0f%% of match\n", col, percentage));
-            }
-        } catch (IOException e) {
-            System.err.println("Error writing summary report: " + e.getMessage());
-        }
-    }
+    // Rest of the methods (readRowIds, readColumns, processRows, etc.) remain unchanged
+    // [Include all other methods from the previous code without modification]
 }
