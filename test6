@@ -43,7 +43,7 @@ public class CsvComparator {
         for (String setFolder : setFolders) {
             Path setPath = Paths.get(mainFolder, setFolder);
             
-            // Delete old reports
+            // Delete existing reports
             deleteIfExists(setPath.resolve("difference.csv"));
             deleteIfExists(setPath.resolve("summary_report.txt"));
 
@@ -129,6 +129,7 @@ public class CsvComparator {
             char delimiter = detectDelimiter(firstLine);
             br.reset();
 
+            // OpenCSV 5.7.1+ compatible separator handling
             CSVReader reader = new CSVReaderBuilder(br)
                     .withSeparator(delimiter)
                     .build();
@@ -144,7 +145,7 @@ public class CsvComparator {
                     .map(header -> header.trim().toLowerCase())
                     .collect(Collectors.toList());
 
-            // Find SubjectId column
+            // Find SubjectId column index
             int subjectIdIndex = -1;
             for (int i = 0; i < headersLower.size(); i++) {
                 if (headersLower.get(i).equals("subjectid")) {
