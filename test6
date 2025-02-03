@@ -6,6 +6,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.Normalizer;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,7 +42,12 @@ public class CsvComparator {
 
         for (String setFolder : setFolders) {
             Path setPath = Paths.get(mainFolder, setFolder);
+            
+            // Delete old reports
+            deleteIfExists(setPath.resolve("difference.csv"));
+            deleteIfExists(setPath.resolve("summary_report.txt"));
 
+            // Read configuration files
             List<String> rowIds = readRowIds(setPath);
             if (rowIds.isEmpty()) {
                 System.err.println("Skipping " + setFolder + ": No row IDs found.");
@@ -54,27 +60,63 @@ public class CsvComparator {
                 continue;
             }
 
+            // Read CSV data
             Map<String, Map<String, String>> actualData = readCsv(setPath.resolve("actualoutputfile.csv"), columns);
             Map<String, Map<String, String>> expectedData = readCsv(setPath.resolve("expectedoutputfile.csv"), columns);
 
             if (actualData == null || expectedData == null) {
-                System.err.println("Skipping " + setFolder + ": Missing columns in CSV files.");
+                System.err.println("Skipping " + setFolder + ": CSV data loading failed.");
                 continue;
             }
 
+            // Process comparisons
             List<DifferenceRecord> differences = new ArrayList<>();
             Map<String, ColumnSummary> summary = initializeSummary(columns);
-
             processRows(rowIds, columns, actualData, expectedData, differences, summary);
 
+            // Generate output files
             writeDifferences(setPath.resolve("difference.csv"), differences);
             writeSummaryReport(setPath.resolve("summary_report.txt"), rowIds.size(), summary);
         }
     }
 
-    // Detect delimiter from the first line of the CSV
+    private static void deleteIfExists(Path filePath) {
+        try {
+            Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            System.err.println("Error deleting file: " + filePath + " - " + e.getMessage());
+        }
+    }
+
+    private static List<String> readRowIds(Path setPath) {
+        Path filePath = setPath.resolve("rowidstobeconsiderformismatch.txt");
+        try {
+            return Files.readAllLines(filePath).stream()
+                    .map(String::trim)
+                    .filter(line -> !line.isEmpty())
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            System.err.println("Error reading row IDs: " + e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private static List<String> readColumns(Path setPath) {
+        Path filePath = setPath.resolve("columnstobeconsiderformismatch.txt");
+        try {
+            return Files.readAllLines(filePath).stream()
+                    .map(String::trim)
+                    .filter(line -> !line.isEmpty())
+                    .map(String::toLowerCase)
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            System.err.println("Error reading columns: " + e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
     private static char detectDelimiter(String line) {
-        if (line == null || line.isEmpty()) return ','; // Default to comma
+        if (line == null || line.isEmpty()) return ',';
         int commaCount = line.replaceAll("[^,]", "").length();
         int semicolonCount = line.replaceAll("[^;]", "").length();
         return (commaCount >= semicolonCount) ? ',' : ';';
@@ -82,7 +124,7 @@ public class CsvComparator {
 
     private static Map<String, Map<String, String>> readCsv(Path csvPath, List<String> requiredColumns) {
         try (BufferedReader br = new BufferedReader(new FileReader(csvPath.toFile()))) {
-            br.mark(8192); // Buffer size for reset
+            br.mark(8192);
             String firstLine = br.readLine();
             char delimiter = detectDelimiter(firstLine);
             br.reset();
@@ -102,6 +144,7 @@ public class CsvComparator {
                     .map(header -> header.trim().toLowerCase())
                     .collect(Collectors.toList());
 
+            // Find SubjectId column
             int subjectIdIndex = -1;
             for (int i = 0; i < headersLower.size(); i++) {
                 if (headersLower.get(i).equals("subjectid")) {
@@ -136,7 +179,7 @@ public class CsvComparator {
                 for (int i = 0; i < row.length; i++) {
                     if (i == subjectIdIndex) continue;
                     String columnName = headersLower.get(i);
-                    String value = (row[i] != null) ? row[i].trim() : null;
+                    String value = row[i] != null ? row[i].trim() : null;
                     rowData.put(columnName, value);
                 }
 
@@ -150,6 +193,117 @@ public class CsvComparator {
         }
     }
 
-    // Rest of the methods (readRowIds, readColumns, processRows, etc.) remain unchanged
-    // [Include all other methods from the previous code without modification]
+    private static Map<String, ColumnSummary> initializeSummary(List<String> columns) {
+        Map<String, ColumnSummary> summary = new LinkedHashMap<>();
+        for (String col : columns) {
+            summary.put(col, new ColumnSummary());
+        }
+        return summary;
+    }
+
+    private static void processRows(List<String> rowIds, List<String> columns,
+                                    Map<String, Map<String, String>> actualData,
+                                    Map<String, Map<String, String>> expectedData,
+                                    List<DifferenceRecord> differences,
+                                    Map<String, ColumnSummary> summary) {
+        for (String rowId : rowIds) {
+            Map<String, String> actualRow = actualData.get(rowId);
+            Map<String, String> expectedRow = expectedData.get(rowId);
+
+            for (String col : columns) {
+                ColumnSummary colSummary = summary.get(col);
+                colSummary.total++;
+
+                String actualValue = (actualRow != null) ? actualRow.get(col) : null;
+                String expectedValue = (expectedRow != null) ? expectedRow.get(col) : null;
+
+                boolean match = areValuesEqual(actualValue, expectedValue);
+
+                if (!match) {
+                    differences.add(new DifferenceRecord(rowId, col, actualValue, expectedValue));
+                } else {
+                    colSummary.matches++;
+                }
+            }
+        }
+    }
+
+    private static boolean areValuesEqual(String actual, String expected) {
+        if (actual == null && expected == null) return true;
+        if (actual == null || expected == null) return false;
+
+        // Handle numeric comparison with rounding
+        if (isNumeric(actual) && isNumeric(expected)) {
+            try {
+                double actualNum = Double.parseDouble(actual);
+                double expectedNum = Double.parseDouble(expected);
+                return Math.round(actualNum) == Math.round(expectedNum);
+            } catch (NumberFormatException e) {
+                // Fall through to text comparison
+            }
+        }
+
+        // Handle text comparison with normalization
+        return normalizeString(actual).equals(normalizeString(expected));
+    }
+
+    private static boolean isNumeric(String str) {
+        if (str == null) return false;
+        try {
+            Double.parseDouble(str);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private static String normalizeString(String str) {
+        if (str == null) return "";
+        return Normalizer.normalize(str, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase()
+                .trim();
+    }
+
+    private static void writeDifferences(Path diffPath, List<DifferenceRecord> differences) {
+        try (CSVWriter writer = new CSVWriter(new FileWriter(diffPath.toFile()))) {
+            writer.writeNext(new String[]{"SubjectId", "Column", "Actual Value", "Expected Value"});
+            for (DifferenceRecord diff : differences) {
+                writer.writeNext(new String[]{
+                        diff.getSubjectId(),
+                        diff.getColumn(),
+                        diff.getActualValue(),
+                        diff.getExpectedValue()
+                });
+            }
+        } catch (IOException e) {
+            System.err.println("Error writing differences: " + e.getMessage());
+        }
+    }
+
+    private static void writeSummaryReport(Path summaryPath, int totalRows, Map<String, ColumnSummary> summary) {
+        try (BufferedWriter writer = Files.newBufferedWriter(summaryPath)) {
+            writer.write("Total number of rowidstobeconsiderformismatch are : " + totalRows + "\n");
+            
+            // Sort by descending match percentage
+            List<Map.Entry<String, ColumnSummary>> sortedEntries = new ArrayList<>(summary.entrySet());
+            sortedEntries.sort((e1, e2) -> Double.compare(
+                calculatePercentage(e2.getValue()),
+                calculatePercentage(e1.getValue())
+            ));
+
+            for (Map.Entry<String, ColumnSummary> entry : sortedEntries) {
+                String col = entry.getKey();
+                ColumnSummary colSummary = entry.getValue();
+                double percentage = calculatePercentage(colSummary);
+                writer.write(String.format("%s: %.0f%% of match\n", col, percentage));
+            }
+        } catch (IOException e) {
+            System.err.println("Error writing summary report: " + e.getMessage());
+        }
+    }
+
+    private static double calculatePercentage(ColumnSummary summary) {
+        return summary.total == 0 ? 0 : (summary.matches * 100.0) / summary.total;
+    }
 }
