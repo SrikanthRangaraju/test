@@ -17,18 +17,21 @@ public class CsvComparator {
         private final String column;
         private final String actualValue;
         private final String expectedValue;
+        private final boolean isMatch;
 
-        public DifferenceRecord(String subjectId, String column, String actualValue, String expectedValue) {
+        public DifferenceRecord(String subjectId, String column, String actualValue, String expectedValue, boolean isMatch) {
             this.subjectId = subjectId;
             this.column = column;
             this.actualValue = actualValue != null ? actualValue : "";
             this.expectedValue = expectedValue != null ? expectedValue : "";
+            this.isMatch = isMatch;
         }
 
         public String getSubjectId() { return subjectId; }
         public String getColumn() { return column; }
         public String getActualValue() { return actualValue; }
         public String getExpectedValue() { return expectedValue; }
+        public boolean isMatch() { return isMatch; }
     }
 
     private static class ColumnSummary {
@@ -43,11 +46,10 @@ public class CsvComparator {
         for (String setFolder : setFolders) {
             Path setPath = Paths.get(mainFolder, setFolder);
             
-            // Delete existing reports
             deleteIfExists(setPath.resolve("difference.csv"));
+            deleteIfExists(setPath.resolve("matchdata.csv"));
             deleteIfExists(setPath.resolve("summary_report.txt"));
 
-            // Read configuration files
             List<String> rowIds = readRowIds(setPath);
             if (rowIds.isEmpty()) {
                 System.err.println("Skipping " + setFolder + ": No row IDs found.");
@@ -60,7 +62,6 @@ public class CsvComparator {
                 continue;
             }
 
-            // Read CSV data
             Map<String, Map<String, String>> actualData = readCsv(setPath.resolve("actualoutputfile.csv"), columns);
             Map<String, Map<String, String>> expectedData = readCsv(setPath.resolve("expectedoutputfile.csv"), columns);
 
@@ -69,13 +70,13 @@ public class CsvComparator {
                 continue;
             }
 
-            // Process comparisons
-            List<DifferenceRecord> differences = new ArrayList<>();
+            List<DifferenceRecord> allRecords = new ArrayList<>();
             Map<String, ColumnSummary> summary = initializeSummary(columns);
-            processRows(rowIds, columns, actualData, expectedData, differences, summary);
 
-            // Generate output files
-            writeDifferences(setPath.resolve("difference.csv"), differences);
+            processRows(rowIds, columns, actualData, expectedData, allRecords, summary);
+
+            writeDifferences(setPath.resolve("difference.csv"), allRecords);
+            writeMatchData(setPath.resolve("matchdata.csv"), allRecords);
             writeSummaryReport(setPath.resolve("summary_report.txt"), rowIds.size(), summary);
         }
     }
@@ -124,12 +125,10 @@ public class CsvComparator {
                 return null;
             }
 
-            // Process headers (case-insensitive)
             List<String> headersLower = Arrays.stream(headers)
                     .map(header -> header.trim().toLowerCase())
                     .collect(Collectors.toList());
 
-            // Find SubjectId column index
             int subjectIdIndex = -1;
             for (int i = 0; i < headersLower.size(); i++) {
                 if (headersLower.get(i).equals("subjectid")) {
@@ -143,7 +142,6 @@ public class CsvComparator {
                 return null;
             }
 
-            // Validate required columns
             Set<String> headerSet = new HashSet<>(headersLower);
             for (String col : requiredColumns) {
                 if (!headerSet.contains(col.toLowerCase())) {
@@ -152,7 +150,6 @@ public class CsvComparator {
                 }
             }
 
-            // Read data rows
             Map<String, Map<String, String>> data = new HashMap<>();
             String[] row;
             while ((row = reader.readNext()) != null) {
@@ -189,7 +186,7 @@ public class CsvComparator {
     private static void processRows(List<String> rowIds, List<String> columns,
                                     Map<String, Map<String, String>> actualData,
                                     Map<String, Map<String, String>> expectedData,
-                                    List<DifferenceRecord> differences,
+                                    List<DifferenceRecord> allRecords,
                                     Map<String, ColumnSummary> summary) {
         for (String rowId : rowIds) {
             Map<String, String> actualRow = actualData.get(rowId);
@@ -203,10 +200,9 @@ public class CsvComparator {
                 String expectedValue = (expectedRow != null) ? expectedRow.get(col) : null;
 
                 boolean match = areValuesEqual(actualValue, expectedValue);
+                allRecords.add(new DifferenceRecord(rowId, col, actualValue, expectedValue, match));
 
-                if (!match) {
-                    differences.add(new DifferenceRecord(rowId, col, actualValue, expectedValue));
-                } else {
+                if (match) {
                     colSummary.matches++;
                 }
             }
@@ -217,7 +213,6 @@ public class CsvComparator {
         if (actual == null && expected == null) return true;
         if (actual == null || expected == null) return false;
 
-        // Handle numeric comparison with rounding
         if (isNumeric(actual) && isNumeric(expected)) {
             try {
                 double actualNum = Double.parseDouble(actual);
@@ -228,7 +223,6 @@ public class CsvComparator {
             }
         }
 
-        // Handle text comparison with normalization
         return normalizeString(actual).equals(normalizeString(expected));
     }
 
@@ -250,19 +244,38 @@ public class CsvComparator {
                 .trim();
     }
 
-    private static void writeDifferences(Path diffPath, List<DifferenceRecord> differences) {
+    private static void writeDifferences(Path diffPath, List<DifferenceRecord> records) {
         try (CSVWriter writer = new CSVWriter(new FileWriter(diffPath.toFile()))) {
             writer.writeNext(new String[]{"SubjectId", "Column", "Actual Value", "Expected Value"});
-            for (DifferenceRecord diff : differences) {
-                writer.writeNext(new String[]{
-                        diff.getSubjectId(),
-                        diff.getColumn(),
-                        diff.getActualValue(),
-                        diff.getExpectedValue()
-                });
+            for (DifferenceRecord record : records) {
+                if (!record.isMatch()) {
+                    writer.writeNext(new String[]{
+                            record.getSubjectId(),
+                            record.getColumn(),
+                            record.getActualValue(),
+                            record.getExpectedValue()
+                    });
+                }
             }
         } catch (IOException e) {
             System.err.println("Error writing differences: " + e.getMessage());
+        }
+    }
+
+    private static void writeMatchData(Path matchPath, List<DifferenceRecord> records) {
+        try (CSVWriter writer = new CSVWriter(new FileWriter(matchPath.toFile()))) {
+            writer.writeNext(new String[]{"SubjectId", "Column", "Actual Value", "Expected Value", "Match Status"});
+            for (DifferenceRecord record : records) {
+                writer.writeNext(new String[]{
+                        record.getSubjectId(),
+                        record.getColumn(),
+                        record.getActualValue(),
+                        record.getExpectedValue(),
+                        record.isMatch() ? "MATCH" : "MISMATCH"
+                });
+            }
+        } catch (IOException e) {
+            System.err.println("Error writing match data: " + e.getMessage());
         }
     }
 
@@ -270,7 +283,6 @@ public class CsvComparator {
         try (BufferedWriter writer = Files.newBufferedWriter(summaryPath)) {
             writer.write("Total number of rowidstobeconsiderformismatch are : " + totalRows + "\n");
             
-            // Sort by descending match percentage
             List<Map.Entry<String, ColumnSummary>> sortedEntries = new ArrayList<>(summary.entrySet());
             sortedEntries.sort((e1, e2) -> Double.compare(
                 calculatePercentage(e2.getValue()),
