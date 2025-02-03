@@ -115,25 +115,9 @@ public class CsvComparator {
         }
     }
 
-    private static char detectDelimiter(String line) {
-        if (line == null || line.isEmpty()) return ',';
-        int commaCount = line.replaceAll("[^,]", "").length();
-        int semicolonCount = line.replaceAll("[^;]", "").length();
-        return (commaCount >= semicolonCount) ? ',' : ';';
-    }
-
     private static Map<String, Map<String, String>> readCsv(Path csvPath, List<String> requiredColumns) {
         try (BufferedReader br = new BufferedReader(new FileReader(csvPath.toFile()))) {
-            br.mark(8192);
-            String firstLine = br.readLine();
-            char delimiter = detectDelimiter(firstLine);
-            br.reset();
-
-            // OpenCSV 5.7.1+ compatible separator handling
-            CSVReader reader = new CSVReaderBuilder(br)
-                    .withSeparator(delimiter)
-                    .build();
-
+            CSVReader reader = new CSVReaderBuilder(br).build();
             String[] headers = reader.readNext();
             if (headers == null) {
                 System.err.println("Empty CSV file: " + csvPath);
