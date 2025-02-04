@@ -38,9 +38,15 @@ public class CSVFolderComparator {
         Map<String, Integer> actualHeaderMap = createHeaderMap(actualLines.get(0));
         Map<String, Integer> expectedHeaderMap = createHeaderMap(expectedLines.get(0));
 
-        // Parse data and align rows by SubjectId
-        Map<String, String[]> actualData = alignRowsById(parseData(actualLines, actualHeaderMap), actualHeaderMap.get("subjectid"));
-        Map<String, String[]> expectedData = alignRowsById(parseData(expectedLines, expectedHeaderMap), expectedHeaderMap.get("subjectid"));
+        System.out.println("Actual Headers: " + actualHeaderMap.keySet());
+        System.out.println("Expected Headers: " + expectedHeaderMap.keySet());
+        System.out.println("Columns to Consider: " + columnsToConsider);
+
+        List<String[]> actualData = parseData(actualLines, actualHeaderMap);
+        List<String[]> expectedData = parseData(expectedLines, expectedHeaderMap);
+
+        Map<String, String[]> actualRows = alignRowsById(actualData, actualHeaderMap.get("subjectid"));
+        Map<String, String[]> expectedRows = alignRowsById(expectedData, expectedHeaderMap.get("subjectid"));
 
         List<String> diffOutput = new ArrayList<>();
         List<String> matchOutput = new ArrayList<>();
@@ -50,11 +56,14 @@ public class CSVFolderComparator {
         Map<String, Integer> matchCounts = new HashMap<>();
         Map<String, Integer> totalCounts = new HashMap<>();
 
-        for (String subjectId : rowsToConsider) {
-            if (!actualData.containsKey(subjectId) || !expectedData.containsKey(subjectId)) continue;
+        int totalRowsConsidered = 0;
 
-            String[] actualRow = actualData.get(subjectId);
-            String[] expectedRow = expectedData.get(subjectId);
+        for (String subjectId : rowsToConsider) {
+            if (!actualRows.containsKey(subjectId) || !expectedRows.containsKey(subjectId)) continue;
+
+            totalRowsConsidered++;
+            String[] actualRow = actualRows.get(subjectId);
+            String[] expectedRow = expectedRows.get(subjectId);
 
             for (String column : columnsToConsider) {
                 Integer actualIndex = actualHeaderMap.get(column.toLowerCase());
@@ -78,7 +87,7 @@ public class CSVFolderComparator {
 
         writeOutput(new File(setFolder, "difference.csv"), diffOutput);
         writeOutput(new File(setFolder, "matcheddata.csv"), matchOutput);
-        writeSummaryReport(setFolder, matchCounts, totalCounts);
+        writeSummaryReport(setFolder, matchCounts, totalCounts, totalRowsConsidered);
     }
 
     private static Map<String, Integer> createHeaderMap(String headerLine) {
@@ -119,9 +128,9 @@ public class CSVFolderComparator {
         Files.write(outputFile.toPath(), lines);
     }
 
-    private static void writeSummaryReport(File folder, Map<String, Integer> matchCounts, Map<String, Integer> totalCounts) throws IOException {
+    private static void writeSummaryReport(File folder, Map<String, Integer> matchCounts, Map<String, Integer> totalCounts, int totalRowsConsidered) throws IOException {
         List<String> summary = new ArrayList<>();
-        summary.add("Total number of rows considered: " + totalCounts.values().stream().mapToInt(Integer::intValue).sum());
+        summary.add("Total number of rows considered: " + totalRowsConsidered);
         summary.add("Column Name : Match Percentage");
 
         totalCounts.keySet().stream().sorted()
