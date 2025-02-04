@@ -1,202 +1,21 @@
-import java.io.*;
-import java.util.*;
-import java.util.stream.Collectors;
-
-public class CSVComparator {
-
-    public static void main(String[] args) {
-        String mainFolderPath = "./main";
-        File mainFolder = new File(mainFolderPath);
-        File[] setFolders = mainFolder.listFiles(File::isDirectory);
-
-        if (setFolders != null) {
-            for (File setFolder : setFolders) {
-                processSetFolder(setFolder);
-            }
-        }
-    }
-
-    private static void processSetFolder(File setFolder) {
-        Set<String> rowIds = readRowIds(setFolder);
-        List<String> columns = readColumns(setFolder);
-
-        if (rowIds.isEmpty() || columns.isEmpty()) {
-            System.err.println("No row IDs or columns to process in " + setFolder.getName());
-            return;
-        }
-
-        Map<String, Map<String, String>> actualData = readCSV(new File(setFolder, "actualoutputfile.csv"), rowIds, columns);
-        Map<String, Map<String, String>> expectedData = readCSV(new File(setFolder, "expectedoutputfile.csv"), rowIds, columns);
-
-        List<String[]> differences = new ArrayList<>();
-        Map<String, int[]> columnStats = new HashMap<>();
-        columns.forEach(column -> columnStats.put(column, new int[2]));
-
-        for (String rowId : rowIds) {
-            Map<String, String> actualRow = actualData.get(rowId);
-            Map<String, String> expectedRow = expectedData.get(rowId);
-
-            for (String column : columns) {
-                int[] stats = columnStats.get(column);
-                stats[0]++;
-
-                if (actualRow == null || expectedRow == null) {
-                    differences.add(new String[]{
-                            rowId,
-                            column,
-                            (actualRow != null) ? actualRow.get(column) : "Row not present in actual",
-                            (expectedRow != null) ? expectedRow.get(column) : "Row not present in expected"
-                    });
-                    continue;
-                }
-
-                String actualValue = actualRow.get(column);
-                String expectedValue = expectedRow.get(column);
-
-                if (actualValue == null || expectedValue == null) {
-                    differences.add(new String[]{rowId, column, actualValue, expectedValue});
-                    continue;
-                }
-
-                String processedActual = processValue(actualValue);
-                String processedExpected = processValue(expectedValue);
-
-                if (processedActual.equals(processedExpected)) {
-                    stats[1]++;
-                } else {
-                    differences.add(new String[]{rowId, column, actualValue, expectedValue});
-                }
-            }
-        }
-
-        writeDifferences(setFolder, differences);
-        writeSummaryReport(setFolder, columnStats, rowIds.size());
-    }
-
-    private static Set<String> readRowIds(File setFolder) {
-        Set<String> rowIds = new HashSet<>();
-        File file = new File(setFolder, "rowidstobeconsiderformismatch.txt");
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                rowIds.add(line.trim());
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return rowIds;
-    }
-
-    private static List<String> readColumns(File setFolder) {
-        List<String> columns = new ArrayList<>();
-        File file = new File(setFolder, "columnstobeconsiderformismatch.txt");
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                columns.add(line.trim());
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return columns;
-    }
-
-    private static Map<String, Map<String, String>> readCSV(File csvFile, Set<String> rowIds, List<String> columns) {
-        Map<String, Map<String, String>> data = new HashMap<>();
-        if (!csvFile.exists()) {
-            return data;
-        }
-
-        try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
-            String headerLine = br.readLine();
-            if (headerLine == null) return data;
-
-            String[] headers = headerLine.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1);
-            Map<String, Integer> headerIndex = new HashMap<>();
-            for (int i = 0; i < headers.length; i++) {
-                headerIndex.put(headers[i].trim().toLowerCase(), i);
-            }
-
-            Integer subjectIdIdx = headerIndex.get("subjectid");
-            if (subjectIdIdx == null) {
-                System.err.println("SubjectId column not found in " + csvFile.getName());
-                return data;
-            }
-
-            Map<String, Integer> columnIndices = new HashMap<>();
-            for (String column : columns) {
-                String lowerColumn = column.trim().toLowerCase();
-                if (headerIndex.containsKey(lowerColumn)) {
-                    columnIndices.put(column, headerIndex.get(lowerColumn));
-                }
-            }
-
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] row = line.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1);
-                String subjectId = row[subjectIdIdx].trim();
-
-                if (rowIds.contains(subjectId)) {
-                    Map<String, String> rowData = new HashMap<>();
-                    for (String column : columns) {
-                        Integer idx = columnIndices.get(column);
-                        String value = (idx != null && idx < row.length) ? row[idx].trim() : null;
-                        rowData.put(column, value);
-                    }
-                    data.put(subjectId, rowData);
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return data;
-    }
-
-    private static String processValue(String value) {
-        try {
-            double num = Double.parseDouble(value);
-            return String.format("%.2f", num);
-        } catch (NumberFormatException e) {
-            return value.toLowerCase();
-        }
-    }
-
-    private static void writeDifferences(File setFolder, List<String[]> differences) {
-        File diffFile = new File(setFolder, "difference.csv");
-        try (PrintWriter writer = new PrintWriter(new FileWriter(diffFile))) {
-            writer.println("SubjectID,Column,Actual,Expected");
-            for (String[] diff : differences) {
-                writer.println(String.join(",",
-                        escapeCsv(diff[0]),
-                        escapeCsv(diff[1]),
-                        escapeCsv(diff[2]),
-                        escapeCsv(diff[3])));
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static String escapeCsv(String value) {
-        if (value == null) return "";
-        if (value.contains("\"") || value.contains(",") || value.contains("\n")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
-    }
-
-    private static void writeSummaryReport(File setFolder, Map<String, int[]> columnStats, int totalRows) {
+private static void writeSummaryReport(File setFolder, Map<String, int[]> columnStats, int totalRows) {
         File reportFile = new File(setFolder, "summary_report.txt");
-        List<String> columns = columnStats.keySet().stream().sorted().collect(Collectors.toList());
+        List<String> columns = columnStats.keySet().stream()
+                .sorted()
+                .collect(Collectors.toList());
 
         try (PrintWriter writer = new PrintWriter(new FileWriter(reportFile))) {
             writer.println("Total number of rowidstobeconsiderformismatch are : " + totalRows);
-            writer.println("Column Name and percentage of match");
+            writer.println("Column Name and percentage of match (Calculation Details)");
+            
             for (String column : columns) {
                 int[] stats = columnStats.get(column);
                 double percentage = (stats[0] == 0) ? 0 : (stats[1] * 100.0) / stats[0];
-                percentage = Math.round(percentage * 100.0) / 100.0;
-                writer.printf("%s: %.2f%% of match%n", column, percentage);
+                percentage = Math.round(percentage * 100.0) / 100.0; // Round to 2 decimals
+                
+                // New: Explicit calculation details
+                writer.printf("%s: %d out of %d match (%.2f%%)%n", 
+                             column, stats[1], stats[0], percentage);
             }
         } catch (IOException e) {
             e.printStackTrace();
