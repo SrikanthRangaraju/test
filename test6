@@ -23,8 +23,22 @@ zip -r "$zip_file" "$destination_folder"
 
 # Check if the zip command succeeded
 if [ $? -eq 0 ]; then
-  echo "Processing and zipping complete. Zip file: $zip_file"
+  echo "Successfully created zip file: $zip_file"
+  
+  # Delete the updated folder
+  echo "Deleting the folder: $destination_folder"
+  rm -rf "$destination_folder"
+  
+  # Check if the folder was deleted successfully
+  if [ $? -eq 0 ]; then
+    echo "Successfully deleted the folder: $destination_folder"
+  else
+    echo "Error: Failed to delete the folder: $destination_folder"
+    exit 1
+  fi
 else
   echo "Error: Failed to create zip file."
   exit 1
 fi
+
+echo "Processing, zipping, and cleanup complete."
