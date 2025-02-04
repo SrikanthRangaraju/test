@@ -1,34 +1,19 @@
 #!/bin/bash
 
-# Define the folder containing the JSON files
-folder_path="/path/to/your/folder"
+# Define source and destination folders
+source_folder="/tmp/test/RutResponse"
+destination_folder="/tmp/test/updatedfolder"
 
-# Loop through all JSON files in the folder
-find "$folder_path" -type f -name "*.json" | while read -r file; do
-  echo "Processing file: $file"
+# Ensure the destination folder exists
+mkdir -p "$destination_folder"
 
-  # Check if the file is not empty
-  if [ -s "$file" ]; then
-    # Remove the first and last lines and replace "response": { with {
-    sed '1d;$d;s/"response": {/ {/' "$file" > "${file}.tmp"
+# Process each JSON file in the source folder
+find "$source_folder" -type f -name "*.json" | while read -r file; do
+  # Get the filename without the path
+  filename=$(basename "$file")
 
-    # If the sed command was successful, replace the original file
-    if [ $? -eq 0 ]; then
-      mv "${file}.tmp" "$file"
-      echo "Processed: $file"
-    else
-      echo "Error processing: $file"
-      rm -f "${file}.tmp"  # Remove the temporary file on failure
-    fi
-  else
-    echo "Skipped empty file: $file"
-  fi
+  # Process the file: remove first and last lines and replace "response": { with {
+  sed '1d;$d;s/"response": {/ {/' "$file" > "$destination_folder/$filename"
 done
 
-# Generate a timestamp in the format ddmmyyyy_currenttime
-timestamp=$(date +"%d%m%Y_%H%M%S")
-
-# Zip the folder with the timestamp
-zip -r "${folder_path}_${timestamp}.zip" "$folder_path"
-
-echo "Processing and zipping complete. Output: ${folder_path}_${timestamp}.zip"
+echo "Processing complete. Updated files saved to $destination_folder"
