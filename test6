@@ -38,11 +38,15 @@ public class CSVFolderComparator {
         Map<String, Integer> actualHeaderMap = createHeaderMap(actualLines.get(0));
         Map<String, Integer> expectedHeaderMap = createHeaderMap(expectedLines.get(0));
 
+        System.out.println("Actual Headers: " + actualHeaderMap.keySet());
+        System.out.println("Expected Headers: " + expectedHeaderMap.keySet());
+        System.out.println("Columns to Consider: " + columnsToConsider);
+
         List<String[]> actualData = parseData(actualLines, actualHeaderMap);
         List<String[]> expectedData = parseData(expectedLines, expectedHeaderMap);
 
-        Map<String, String[]> actualRows = filterRowsById(actualData, actualHeaderMap.get("SubjectId"), rowsToConsider);
-        Map<String, String[]> expectedRows = filterRowsById(expectedData, expectedHeaderMap.get("SubjectId"), rowsToConsider);
+        Map<String, String[]> actualRows = filterRowsById(actualData, actualHeaderMap.get("subjectid"), rowsToConsider);
+        Map<String, String[]> expectedRows = filterRowsById(expectedData, expectedHeaderMap.get("subjectid"), rowsToConsider);
 
         List<String> diffOutput = new ArrayList<>();
         List<String> matchOutput = new ArrayList<>();
@@ -58,10 +62,13 @@ public class CSVFolderComparator {
             String[] expectedRow = expectedRows.get(subjectId);
 
             for (String column : columnsToConsider) {
-                int actualIndex = actualHeaderMap.getOrDefault(column.toLowerCase(), -1);
-                int expectedIndex = expectedHeaderMap.getOrDefault(column.toLowerCase(), -1);
+                Integer actualIndex = actualHeaderMap.get(column.toLowerCase());
+                Integer expectedIndex = expectedHeaderMap.get(column.toLowerCase());
 
-                if (actualIndex == -1 || expectedIndex == -1) continue;
+                if (actualIndex == null || expectedIndex == null) {
+                    System.err.println("Column \"" + column + "\" is missing in one of the files. Skipping this column.");
+                    continue; // Skip the column if it doesn't exist in either file
+                }
 
                 String actualValue = normalizeString(actualRow[actualIndex]);
                 String expectedValue = normalizeString(expectedRow[expectedIndex]);
