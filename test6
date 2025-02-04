@@ -38,55 +38,47 @@ public class CSVFolderComparator {
         Map<String, Integer> actualHeaderMap = createHeaderMap(actualLines.get(0));
         Map<String, Integer> expectedHeaderMap = createHeaderMap(expectedLines.get(0));
 
-        System.out.println("Actual Headers: " + actualHeaderMap.keySet());
-        System.out.println("Expected Headers: " + expectedHeaderMap.keySet());
-        System.out.println("Columns to Consider: " + columnsToConsider);
-
-        List<String[]> actualData = parseData(actualLines, actualHeaderMap);
-        List<String[]> expectedData = parseData(expectedLines, expectedHeaderMap);
-
-        Map<String, String[]> actualRows = filterRowsById(actualData, actualHeaderMap.get("subjectid"), rowsToConsider);
-        Map<String, String[]> expectedRows = filterRowsById(expectedData, expectedHeaderMap.get("subjectid"), rowsToConsider);
+        // Parse data and align rows by SubjectId
+        Map<String, String[]> actualData = alignRowsById(parseData(actualLines, actualHeaderMap), actualHeaderMap.get("subjectid"));
+        Map<String, String[]> expectedData = alignRowsById(parseData(expectedLines, expectedHeaderMap), expectedHeaderMap.get("subjectid"));
 
         List<String> diffOutput = new ArrayList<>();
         List<String> matchOutput = new ArrayList<>();
         diffOutput.add(String.join(",", "SubjectId", "Column", "ActualValue", "ExpectedValue"));
         matchOutput.add(String.join(",", "SubjectId", "Column", "MatchedValue", "ActualValue", "ExpectedValue"));
 
-        Map<String, Integer> matchSummary = new HashMap<>();
+        Map<String, Integer> matchCounts = new HashMap<>();
+        Map<String, Integer> totalCounts = new HashMap<>();
 
-        for (String subjectId : actualRows.keySet()) {
-            if (!expectedRows.containsKey(subjectId)) continue;
+        for (String subjectId : rowsToConsider) {
+            if (!actualData.containsKey(subjectId) || !expectedData.containsKey(subjectId)) continue;
 
-            String[] actualRow = actualRows.get(subjectId);
-            String[] expectedRow = expectedRows.get(subjectId);
+            String[] actualRow = actualData.get(subjectId);
+            String[] expectedRow = expectedData.get(subjectId);
 
             for (String column : columnsToConsider) {
                 Integer actualIndex = actualHeaderMap.get(column.toLowerCase());
                 Integer expectedIndex = expectedHeaderMap.get(column.toLowerCase());
 
-                if (actualIndex == null || expectedIndex == null) {
-                    System.err.println("Column \"" + column + "\" is missing in one of the files. Skipping this column.");
-                    continue; // Skip the column if it doesn't exist in either file
-                }
+                if (actualIndex == null || expectedIndex == null) continue;
 
                 String actualValue = normalizeString(actualRow[actualIndex]);
                 String expectedValue = normalizeString(expectedRow[expectedIndex]);
+
+                totalCounts.put(column, totalCounts.getOrDefault(column, 0) + 1);
 
                 if (!areValuesEqual(actualValue, expectedValue)) {
                     diffOutput.add(String.join(",", subjectId, column, actualValue, expectedValue));
                 } else {
                     matchOutput.add(String.join(",", subjectId, column, actualValue, actualValue, expectedValue));
+                    matchCounts.put(column, matchCounts.getOrDefault(column, 0) + 1);
                 }
-
-                int matchPercentage = calculateMatchPercentage(actualValue, expectedValue);
-                matchSummary.put(column, matchSummary.getOrDefault(column, 0) + matchPercentage);
             }
         }
 
         writeOutput(new File(setFolder, "difference.csv"), diffOutput);
         writeOutput(new File(setFolder, "matcheddata.csv"), matchOutput);
-        writeSummaryReport(setFolder, matchSummary, rowsToConsider.size());
+        writeSummaryReport(setFolder, matchCounts, totalCounts);
     }
 
     private static Map<String, Integer> createHeaderMap(String headerLine) {
@@ -99,18 +91,16 @@ public class CSVFolderComparator {
     }
 
     private static List<String[]> parseData(List<String> lines, Map<String, Integer> headerMap) {
-        return lines.stream().skip(1).map(line -> line.split(",")).filter(row -> row.length == headerMap.size()).collect(Collectors.toList());
+        return lines.stream().skip(1).map(line -> line.split(",")).collect(Collectors.toList());
     }
 
-    private static Map<String, String[]> filterRowsById(List<String[]> data, int idIndex, Set<String> rowIds) {
-        return data.stream()
-                .filter(row -> rowIds.contains(row[idIndex]))
-                .collect(Collectors.toMap(row -> row[idIndex], row -> row));
+    private static Map<String, String[]> alignRowsById(List<String[]> rows, int idIndex) {
+        return rows.stream().collect(Collectors.toMap(row -> row[idIndex], row -> row));
     }
 
     private static String normalizeString(String input) {
         return Normalizer.normalize(input, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")  // Remove diacritical marks
+                .replaceAll("\\p{M}", "") // Remove diacritical marks
                 .trim()
                 .toLowerCase();
     }
@@ -125,45 +115,21 @@ public class CSVFolderComparator {
         }
     }
 
-    private static int calculateMatchPercentage(String actual, String expected) {
-        int maxLength = Math.max(actual.length(), expected.length());
-        int distance = levenshteinDistance(actual, expected);
-        return (int) ((1 - ((double) distance / maxLength)) * 100);
-    }
-
-    private static int levenshteinDistance(String str1, String str2) {
-        int[][] dp = new int[str1.length() + 1][str2.length() + 1];
-
-        for (int i = 0; i <= str1.length(); i++) {
-            for (int j = 0; j <= str2.length(); j++) {
-                if (i == 0) {
-                    dp[i][j] = j;
-                } else if (j == 0) {
-                    dp[i][j] = i;
-                } else {
-                    dp[i][j] = Math.min(
-                            Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1),
-                            dp[i - 1][j - 1] + (str1.charAt(i - 1) == str2.charAt(j - 1) ? 0 : 1)
-                    );
-                }
-            }
-        }
-
-        return dp[str1.length()][str2.length()];
-    }
-
     private static void writeOutput(File outputFile, List<String> lines) throws IOException {
         Files.write(outputFile.toPath(), lines);
     }
 
-    private static void writeSummaryReport(File folder, Map<String, Integer> matchSummary, int totalRows) throws IOException {
+    private static void writeSummaryReport(File folder, Map<String, Integer> matchCounts, Map<String, Integer> totalCounts) throws IOException {
         List<String> summary = new ArrayList<>();
-        summary.add("Total number of rows considered: " + totalRows);
+        summary.add("Total number of rows considered: " + totalCounts.values().stream().mapToInt(Integer::intValue).sum());
         summary.add("Column Name : Match Percentage");
 
-        matchSummary.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> summary.add(entry.getKey() + ": " + (entry.getValue() / totalRows) + "%"));
+        totalCounts.keySet().stream().sorted()
+                .forEach(column -> {
+                    int matches = matchCounts.getOrDefault(column, 0);
+                    int total = totalCounts.getOrDefault(column, 0);
+                    summary.add(column + ": " + (matches * 100 / total) + "%");
+                });
 
         writeOutput(new File(folder, "summary.txt"), summary);
     }
