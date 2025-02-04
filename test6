@@ -71,15 +71,21 @@ public class CSVFolderComparator {
 
                 if (actualIndex == null || expectedIndex == null) continue;
 
-                String actualValue = normalizeString(actualRow[actualIndex]);
-                String expectedValue = normalizeString(expectedRow[expectedIndex]);
+                String actualValue = actualRow[actualIndex];
+                String expectedValue = expectedRow[expectedIndex];
+
+                // Normalize for comparison
+                String normalizedActualValue = normalizeString(actualValue);
+                String normalizedExpectedValue = normalizeString(expectedValue);
 
                 totalCounts.put(column, totalCounts.getOrDefault(column, 0) + 1);
 
-                if (!areValuesEqual(actualValue, expectedValue)) {
+                if (!normalizedActualValue.equals(normalizedExpectedValue)) {
+                    // Write only true mismatches to difference.csv
                     diffOutput.add(String.join(",", subjectId, column, actualValue, expectedValue));
                 } else {
-                    matchOutput.add(String.join(",", subjectId, column, actualValue, actualValue, expectedValue));
+                    // Add matched values to matcheddata.csv
+                    matchOutput.add(String.join(",", subjectId, column, normalizedActualValue, actualValue, expectedValue));
                     matchCounts.put(column, matchCounts.getOrDefault(column, 0) + 1);
                 }
             }
@@ -110,17 +116,22 @@ public class CSVFolderComparator {
     private static String normalizeString(String input) {
         return Normalizer.normalize(input, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "") // Remove diacritical marks
+                .replaceAll("\\s+", " ") // Normalize spaces
                 .trim()
                 .toLowerCase();
     }
 
     private static boolean areValuesEqual(String actual, String expected) {
         try {
+            // Attempt to parse both as numbers for numerical comparison
             double actualNumber = Math.round(Double.parseDouble(actual));
             double expectedNumber = Math.round(Double.parseDouble(expected));
             return actualNumber == expectedNumber;
         } catch (NumberFormatException e) {
-            return actual.equals(expected);
+            // Fallback to string comparison for non-numerical values
+            String normalizedActual = normalizeString(actual);
+            String normalizedExpected = normalizeString(expected);
+            return normalizedActual.equals(normalizedExpected);
         }
     }
 
