@@ -1,18 +1,21 @@
- # Process the response file
-    if [ -s SomeResponse/"$SomeIDS".tmp ]; then
-      tail -n +2 SomeResponse/"$SomeIDS".tmp | head -n -1 | sed 's/"response": {/{/' > SomeResponse/"$SomeIDS".json
-      rm SomeResponse/"$SomeIDS".tmp
-    else
-      echo "Error: Empty response for $SomeIDS" >&2
-      rm -f SomeResponse/"$SomeIDS".tmp
-    fi
-  done < testData.txt
+#!/bin/bash
 
-  # ZIP the SomeResponse folder with date-stamped name
-  zip_name="SomeResponse_$(date +%d%m%Y).zip"
-  zip -r "$zip_name" SomeResponse
+# Define the folder containing the JSON files
+folder_path="/path/to/your/folder"
 
-  # Copy to target directory (adjust paths as needed)
-  cp "$zip_name" /tmp/test/
-  cp "$zip_name" /path/to/target/directory/  # Replace with your actual target path
-' > output.log 2>&1 &
+# Loop through all JSON files in the folder
+find "$folder_path" -type f -name "*.json" | while read -r file; do
+  # Process each file: Remove the first and last lines and replace "response": { with {
+  sed '1d;$d;s/"response": {/ {/' "$file" > "${file}.tmp"
+  
+  # Replace the original file with the processed content
+  mv "${file}.tmp" "$file"
+done
+
+# Generate a timestamp in the format ddmmyyyy_currenttime
+timestamp=$(date +"%d%m%Y_%H%M%S")
+
+# Zip the folder with the timestamp
+zip -r "${folder_path}_${timestamp}.zip" "$folder_path"
+
+echo "Processing and zipping complete. Output: ${folder_path}_${timestamp}.zip"
