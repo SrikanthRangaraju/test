@@ -1,24 +1,18 @@
-private static void writeSummaryReport(File setFolder, Map<String, int[]> columnStats, int totalRows) {
-        File reportFile = new File(setFolder, "summary_report.txt");
-        List<String> columns = columnStats.keySet().stream()
-                .sorted()
-                .collect(Collectors.toList());
+ # Process the response file
+    if [ -s SomeResponse/"$SomeIDS".tmp ]; then
+      tail -n +2 SomeResponse/"$SomeIDS".tmp | head -n -1 | sed 's/"response": {/{/' > SomeResponse/"$SomeIDS".json
+      rm SomeResponse/"$SomeIDS".tmp
+    else
+      echo "Error: Empty response for $SomeIDS" >&2
+      rm -f SomeResponse/"$SomeIDS".tmp
+    fi
+  done < testData.txt
 
-        try (PrintWriter writer = new PrintWriter(new FileWriter(reportFile))) {
-            writer.println("Total number of rowidstobeconsiderformismatch are : " + totalRows);
-            writer.println("Column Name and percentage of match (Calculation Details)");
-            
-            for (String column : columns) {
-                int[] stats = columnStats.get(column);
-                double percentage = (stats[0] == 0) ? 0 : (stats[1] * 100.0) / stats[0];
-                percentage = Math.round(percentage * 100.0) / 100.0; // Round to 2 decimals
-                
-                // New: Explicit calculation details
-                writer.printf("%s: %d out of %d match (%.2f%%)%n", 
-                             column, stats[1], stats[0], percentage);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-}
+  # ZIP the SomeResponse folder with date-stamped name
+  zip_name="SomeResponse_$(date +%d%m%Y).zip"
+  zip -r "$zip_name" SomeResponse
+
+  # Copy to target directory (adjust paths as needed)
+  cp "$zip_name" /tmp/test/
+  cp "$zip_name" /path/to/target/directory/  # Replace with your actual target path
+' > output.log 2>&1 &
