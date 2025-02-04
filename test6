@@ -16,4 +16,15 @@ find "$source_folder" -type f -name "*.json" | while read -r file; do
   sed '1d;$d;s/"response": {/ {/' "$file" > "$destination_folder/$filename"
 done
 
-echo "Processing complete. Updated files saved to $destination_folder"
+# Zip the updated folder
+zip_file="${destination_folder}.zip"
+echo "Zipping updated folder into $zip_file"
+zip -r "$zip_file" "$destination_folder"
+
+# Check if the zip command succeeded
+if [ $? -eq 0 ]; then
+  echo "Processing and zipping complete. Zip file: $zip_file"
+else
+  echo "Error: Failed to create zip file."
+  exit 1
+fi
