@@ -1,156 +1,18 @@
-import java.io.*;
-import java.nio.file.*;
-import java.text.Normalizer;
-import java.util.*;
-import java.util.stream.Collectors;
+Hi Team,
+I know there are a few pending issues from the BDS team, such as:
 
-public class CSVFolderComparator {
+Chile_bra - "camada" is missing
+MCC date format issue
+I requested Fanco and his team to load the data into chile_mail/attr_correo, and he is currently checking on that.
+In the meantime, I tried to extract the Get data using the current version (with the open issues still unresolved) and generated the adviser values for a few sets. The stats are looking like this:
 
-    public static void main(String[] args) throws Exception {
-        String mainFolderPath = "main"; // Path to the main folder
-        File mainFolder = new File(mainFolderPath);
+Once we stabilize these smaller datasets, we can run for 4k/5k or 10k at each family level or by set level.
 
-        if (!mainFolder.exists() || !mainFolder.isDirectory()) {
-            throw new IllegalArgumentException("Invalid main folder path");
-        }
+I have uploaded all the related files on Teams:
 
-        for (File setFolder : Objects.requireNonNull(mainFolder.listFiles(File::isDirectory))) {
-            System.out.println("Processing folder: " + setFolder.getName());
-            processSetFolder(setFolder);
-        }
-    }
-
-    private static void processSetFolder(File setFolder) throws Exception {
-        File actualFile = new File(setFolder, "actualoutputfile.csv");
-        File expectedFile = new File(setFolder, "expectedoutputfile.csv");
-        File columnFile = new File(setFolder, "columnstobeconsiderformismatch.txt");
-        File rowFile = new File(setFolder, "rowidstobeconsiderformismatch.txt");
-
-        if (!actualFile.exists() || !expectedFile.exists() || !columnFile.exists() || !rowFile.exists()) {
-            throw new IllegalArgumentException("Missing required files in folder: " + setFolder.getName());
-        }
-
-        List<String> actualLines = Files.readAllLines(actualFile.toPath());
-        List<String> expectedLines = Files.readAllLines(expectedFile.toPath());
-        Set<String> columnsToConsider = new HashSet<>(Files.readAllLines(columnFile.toPath()));
-        Set<String> rowsToConsider = new HashSet<>(Files.readAllLines(rowFile.toPath()));
-
-        Map<String, Integer> actualHeaderMap = createHeaderMap(actualLines.get(0));
-        Map<String, Integer> expectedHeaderMap = createHeaderMap(expectedLines.get(0));
-
-        System.out.println("Actual Headers: " + actualHeaderMap.keySet());
-        System.out.println("Expected Headers: " + expectedHeaderMap.keySet());
-        System.out.println("Columns to Consider: " + columnsToConsider);
-
-        List<String[]> actualData = parseData(actualLines, actualHeaderMap);
-        List<String[]> expectedData = parseData(expectedLines, expectedHeaderMap);
-
-        Map<String, String[]> actualRows = alignRowsById(actualData, actualHeaderMap.get("subjectid"));
-        Map<String, String[]> expectedRows = alignRowsById(expectedData, expectedHeaderMap.get("subjectid"));
-
-        List<String> diffOutput = new ArrayList<>();
-        List<String> matchOutput = new ArrayList<>();
-        diffOutput.add(String.join(",", "SubjectId", "Column", "ActualValue", "ExpectedValue"));
-        matchOutput.add(String.join(",", "SubjectId", "Column", "MatchedValue", "ActualValue", "ExpectedValue"));
-
-        Map<String, Integer> matchCounts = new HashMap<>();
-        Map<String, Integer> totalCounts = new HashMap<>();
-
-        int totalRowsConsidered = 0;
-
-        for (String subjectId : rowsToConsider) {
-            if (!actualRows.containsKey(subjectId) || !expectedRows.containsKey(subjectId)) continue;
-
-            totalRowsConsidered++;
-            String[] actualRow = actualRows.get(subjectId);
-            String[] expectedRow = expectedRows.get(subjectId);
-
-            for (String column : columnsToConsider) {
-                Integer actualIndex = actualHeaderMap.get(column.toLowerCase());
-                Integer expectedIndex = expectedHeaderMap.get(column.toLowerCase());
-
-                if (actualIndex == null || expectedIndex == null) continue;
-
-                String actualValue = actualRow[actualIndex];
-                String expectedValue = expectedRow[expectedIndex];
-
-                // Normalize for comparison
-                String normalizedActualValue = normalizeString(actualValue);
-                String normalizedExpectedValue = normalizeString(expectedValue);
-
-                totalCounts.put(column, totalCounts.getOrDefault(column, 0) + 1);
-
-                if (!normalizedActualValue.equals(normalizedExpectedValue)) {
-                    // Write only true mismatches to difference.csv
-                    diffOutput.add(String.join(",", subjectId, column, actualValue, expectedValue));
-                } else {
-                    // Add matched values to matcheddata.csv
-                    matchOutput.add(String.join(",", subjectId, column, normalizedActualValue, actualValue, expectedValue));
-                    matchCounts.put(column, matchCounts.getOrDefault(column, 0) + 1);
-                }
-            }
-        }
-
-        writeOutput(new File(setFolder, "difference.csv"), diffOutput);
-        writeOutput(new File(setFolder, "matcheddata.csv"), matchOutput);
-        writeSummaryReport(setFolder, matchCounts, totalCounts, totalRowsConsidered);
-    }
-
-    private static Map<String, Integer> createHeaderMap(String headerLine) {
-        String[] headers = headerLine.split(",");
-        Map<String, Integer> headerMap = new HashMap<>();
-        for (int i = 0; i < headers.length; i++) {
-            headerMap.put(headers[i].toLowerCase(), i);
-        }
-        return headerMap;
-    }
-
-    private static List<String[]> parseData(List<String> lines, Map<String, Integer> headerMap) {
-        return lines.stream().skip(1).map(line -> line.split(",")).collect(Collectors.toList());
-    }
-
-    private static Map<String, String[]> alignRowsById(List<String[]> rows, int idIndex) {
-        return rows.stream().collect(Collectors.toMap(row -> row[idIndex], row -> row));
-    }
-
-    private static String normalizeString(String input) {
-        return Normalizer.normalize(input, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "") // Remove diacritical marks
-                .replaceAll("\\s+", " ") // Normalize spaces
-                .trim()
-                .toLowerCase();
-    }
-
-    private static boolean areValuesEqual(String actual, String expected) {
-        try {
-            // Attempt to parse both as numbers for numerical comparison
-            double actualNumber = Math.round(Double.parseDouble(actual));
-            double expectedNumber = Math.round(Double.parseDouble(expected));
-            return actualNumber == expectedNumber;
-        } catch (NumberFormatException e) {
-            // Fallback to string comparison for non-numerical values
-            String normalizedActual = normalizeString(actual);
-            String normalizedExpected = normalizeString(expected);
-            return normalizedActual.equals(normalizedExpected);
-        }
-    }
-
-    private static void writeOutput(File outputFile, List<String> lines) throws IOException {
-        Files.write(outputFile.toPath(), lines);
-    }
-
-    private static void writeSummaryReport(File folder, Map<String, Integer> matchCounts, Map<String, Integer> totalCounts, int totalRowsConsidered) throws IOException {
-        List<String> summary = new ArrayList<>();
-        summary.add("Total number of rows considered: " + totalRowsConsidered);
-        summary.add("Column Name : Match Percentage");
-
-        totalCounts.keySet().stream().sorted()
-                .forEach(column -> {
-                    int matches = matchCounts.getOrDefault(column, 0);
-                    int total = totalCounts.getOrDefault(column, 0);
-                    summary.add(column + ": " + (matches * 100 / total) + "%");
-                });
-
-        writeOutput(new File(folder, "summary.txt"), summary);
-    }
-}
+Get data
+IDS used
+Adviser values
+Baseline values
+Stats/difference files for comparison
+Please go through them and let me know your thoughts.
