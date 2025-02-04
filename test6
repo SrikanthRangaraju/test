@@ -1,18 +1,126 @@
-Hi Team,
-I know there are a few pending issues from the BDS team, such as:
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+import java.util.stream.Collectors;
 
-Chile_bra - "camada" is missing
-MCC date format issue
-I requested Fanco and his team to load the data into chile_mail/attr_correo, and he is currently checking on that.
-In the meantime, I tried to extract the Get data using the current version (with the open issues still unresolved) and generated the adviser values for a few sets. The stats are looking like this:
+public class CompareCSV {
+    public static void main(String[] args) throws IOException {
+        File mainFolder = new File("main");
+        File[] subFolders = mainFolder.listFiles(File::isDirectory);
+        
+        if (subFolders == null) return;
+        
+        for (File folder : subFolders) {
+            processFolder(folder);
+        }
+    }
 
-Once we stabilize these smaller datasets, we can run for 4k/5k or 10k at each family level or by set level.
+    private static void processFolder(File folder) throws IOException {
+        File actualFile = new File(folder, "actualoutputfile.csv");
+        File expectedFile = new File(folder, "expectedoutputfile.csv");
+        File columnsFile = new File(folder, "columnstobeconsiderformismatch.txt");
+        File rowIdsFile = new File(folder, "rowidstobeconsiderformismatch.txt");
+        File diffFile = new File(folder, "difference.csv");
+        File summaryFile = new File(folder, "summary_report.txt");
+        
+        if (!actualFile.exists() || !expectedFile.exists() || !columnsFile.exists() || !rowIdsFile.exists()) {
+            System.out.println("Missing required files in: " + folder.getName());
+            return;
+        }
+        
+        Set<String> columnsToCompare = new HashSet<>(Files.readAllLines(columnsFile.toPath()));
+        Set<String> rowIdsToCompare = new HashSet<>(Files.readAllLines(rowIdsFile.toPath()));
 
-I have uploaded all the related files on Teams:
+        Map<String, Map<String, String>> actualData = readCSV(actualFile);
+        Map<String, Map<String, String>> expectedData = readCSV(expectedFile);
+        
+        List<String> diffLines = new ArrayList<>();
+        diffLines.add("SubjectId,Column Name,Actual Value,Expected Value");
+        
+        Map<String, Integer> matchCount = new HashMap<>();
+        Map<String, Integer> totalCount = new HashMap<>();
+        
+        for (String subjectId : rowIdsToCompare) {
+            if (!actualData.containsKey(subjectId) || !expectedData.containsKey(subjectId)) continue;
+            
+            Map<String, String> actualRow = actualData.get(subjectId);
+            Map<String, String> expectedRow = expectedData.get(subjectId);
+            
+            for (String column : columnsToCompare) {
+                String actualVal = actualRow.getOrDefault(column, "").trim().toLowerCase();
+                String expectedVal = expectedRow.getOrDefault(column, "").trim().toLowerCase();
+                
+                if (isNumeric(actualVal) && isNumeric(expectedVal)) {
+                    double actualNum = Double.parseDouble(actualVal);
+                    double expectedNum = Double.parseDouble(expectedVal);
+                    
+                    if (Math.abs(actualNum - expectedNum) < 0.10) { 
+                        actualVal = expectedVal; // Treat as equal if the difference is less than 0.01
+                    } else {
+                        actualVal = String.format("%.2f", actualNum);
+                        expectedVal = String.format("%.2f", expectedNum);
+                    }
+                }
+                
+                totalCount.put(column, totalCount.getOrDefault(column, 0) + 1);
+                if (actualVal.equals(expectedVal)) {
+                    matchCount.put(column, matchCount.getOrDefault(column, 0) + 1);
+                } else {
+                    diffLines.add(subjectId + "," + column + "," + actualVal + "," + expectedVal);
+                }
+            }
+        }
+        
+        Files.write(diffFile.toPath(), diffLines);
+        generateSummaryReport(summaryFile, matchCount, totalCount, rowIdsToCompare.size());
+    }
+    
+    private static Map<String, Map<String, String>> readCSV(File file) throws IOException {
+        List<String> lines = Files.readAllLines(file.toPath());
+        if (lines.isEmpty()) return Collections.emptyMap();
+        
+        String[] headers = lines.get(0).split(",");
+        Map<String, Integer> headerIndexMap = new HashMap<>();
+        for (int i = 0; i < headers.length; i++) {
+            headerIndexMap.put(headers[i].trim(), i);
+        }
+        
+        Map<String, Map<String, String>> data = new HashMap<>();
+        
+        for (int i = 1; i < lines.size(); i++) {
+            String[] values = lines.get(i).split(",");
+            if (values.length < headers.length) continue;
+            
+            String subjectId = values[0].trim();
+            Map<String, String> row = new HashMap<>();
+            for (String column : headerIndexMap.keySet()) {
+                row.put(column, values[headerIndexMap.get(column)].trim());
+            }
+            data.put(subjectId, row);
+        }
+        return data;
+    }
 
-Get data
-IDS used
-Adviser values
-Baseline values
-Stats/difference files for comparison
-Please go through them and let me know your thoughts.
+    private static void generateSummaryReport(File summaryFile, Map<String, Integer> matchCount, Map<String, Integer> totalCount, int totalRows) throws IOException {
+        List<String> summaryLines = new ArrayList<>();
+        summaryLines.add("Total number of rowidstobeconsiderformismatch are: " + totalRows);
+        
+        List<String> sortedColumns = totalCount.keySet().stream().sorted().collect(Collectors.toList());
+        for (String column : sortedColumns) {
+            int total = totalCount.getOrDefault(column, 0);
+            int match = matchCount.getOrDefault(column, 0);
+            double percentage = (total == 0) ? 0.0 : (match * 100.0 / total);
+            summaryLines.add(column + ": " + String.format("%.2f", percentage) + "% of match");
+        }
+        Files.write(summaryFile.toPath(), summaryLines);
+    }
+    
+    private static boolean isNumeric(String str) {
+        try {
+            Double.parseDouble(str);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+}
