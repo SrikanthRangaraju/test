@@ -1,44 +1,6 @@
-#!/bin/bash
 
-# Define source and destination folders
-source_folder="/tmp/test/RutResponse"
-destination_folder="/tmp/test/updatedfolder"
+Here’s your edited and corrected sentence:
 
-# Ensure the destination folder exists
-mkdir -p "$destination_folder"
+"There are some fixes on the BDS side and also from the Adviser side. After these fixes, when I used the same old data and ran the GET data and Adviser output, the stats are significantly improved, as shown below.
 
-# Process each JSON file in the source folder
-find "$source_folder" -type f -name "*.json" | while read -r file; do
-  # Get the filename without the path
-  filename=$(basename "$file")
-
-  # Process the file: remove first and last lines and replace "response": { with {
-  sed '1d;$d;s/"response": {/ {/' "$file" > "$destination_folder/$filename"
-done
-
-# Zip the updated folder
-zip_file="${destination_folder}.zip"
-echo "Zipping updated folder into $zip_file"
-zip -r "$zip_file" "$destination_folder"
-
-# Check if the zip command succeeded
-if [ $? -eq 0 ]; then
-  echo "Successfully created zip file: $zip_file"
-  
-  # Delete the updated folder
-  echo "Deleting the folder: $destination_folder"
-  rm -rf "$destination_folder"
-  
-  # Check if the folder was deleted successfully
-  if [ $? -eq 0 ]; then
-    echo "Successfully deleted the folder: $destination_folder"
-  else
-    echo "Error: Failed to delete the folder: $destination_folder"
-    exit 1
-  fi
-else
-  echo "Error: Failed to create zip file."
-  exit 1
-fi
-
-echo "Processing, zipping, and cleanup complete."
+Currently, the TW service is down, so I cannot run a larger dataset for testing. Once the service is up and running, I will try to run it for individual families and post the latest stats."
