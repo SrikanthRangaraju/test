@@ -1,57 +1,25 @@
-import java.io.*;
-import java.nio.file.*;
-import java.util.*;
-import java.util.stream.Collectors;
+#!/bin/bash
 
-public class RutProcessor {
+# Load configuration
+USER_NAME=""
+PERIOD="GENERAL"
+MONITORING_DATE="20221310"
+SEGMENTS='"
 
-    public static void main(String[] args) {
-        // Folder containing the CSV files
-        String folderPath = "C:/baseData"; // Update to your folder path
-        String file1Path = "file1.csv";
-        String file2Path = "file2.csv";
+# Define the gRPC function
+process_line() {
+  local line="$1"
+  local rut=$(echo "$line" | cut -d',' -f1)
+  local dv=$(echo "$line" | cut -d',' -f2)
 
-        try {
-            // Step 1: Read all files and collect RUTs
-            List<String> allRuts = new ArrayList<>();
-            Files.walk(Paths.get(folderPath))
-                    .filter(Files::isRegularFile) // Only process files
-                    .filter(p -> p.toString().endsWith(".csv")) // Only process .csv files
-                    .forEach(path -> {
-                        try (BufferedReader reader = new BufferedReader(new FileReader(path.toFile()))) {
-                            // Skip the header line and process the rest
-                            String line;
-                            reader.readLine(); // Skip header
-                            while ((line = reader.readLine()) != null) {
-                                String[] parts = line.split(","); // Assuming comma-separated values
-                                allRuts.add(parts[0].trim()); // Add the RUT (first column)
-                            }
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    });
+  grpcurl -emit-defaults -d "{
+ 
 
-            // Step 2: Write all RUTs to file1.csv
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file1Path))) {
-                for (String rut : allRuts) {
-                    writer.write(rut);
-                    writer.newLine();
-                }
-            }
+# Process the input file
+while IFS= read -r line; do
+  echo "Processing line: $line"
+  process_line "$line" >> output.log 2>> error.log &
+done < testData.txt
 
-            // Step 3: Remove duplicates and write to file2.csv
-            Set<String> uniqueRuts = new LinkedHashSet<>(allRuts); // Preserve order while removing duplicates
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file2Path))) {
-                for (String rut : uniqueRuts) {
-                    writer.write(rut);
-                    writer.newLine();
-                }
-            }
-
-            System.out.println("Processing complete. Check file1.csv and file2.csv.");
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-}
+# Wait for background processes to finish
+wait
