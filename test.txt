@@ -1,25 +1,33 @@
-#!/bin/bash
+import java.io.*;
+import java.util.*;
+import java.nio.file.*;
 
-# Load configuration
-USER_NAME=""
-PERIOD="GENERAL"
-MONITORING_DATE="20221310"
-SEGMENTS='"
+public class RemoveIDs {
 
-# Define the gRPC function
-process_line() {
-  local line="$1"
-  local rut=$(echo "$line" | cut -d',' -f1)
-  local dv=$(echo "$line" | cut -d',' -f2)
+    public static void main(String[] args) {
+        String masterFilePath = "master.txt"; // Path to the master file
+        String childFilePath = "child.txt";   // Path to the child file
+        String updatedMasterFilePath = "updated_master.txt"; // Path for the updated master file
 
-  grpcurl -emit-defaults -d "{
- 
+        try {
+            // Step 1: Read IDs from master.txt
+            List<String> masterIDs = Files.readAllLines(Paths.get(masterFilePath));
+            Set<String> masterSet = new HashSet<>(masterIDs); // Use a set for faster lookups
 
-# Process the input file
-while IFS= read -r line; do
-  echo "Processing line: $line"
-  process_line "$line" >> output.log 2>> error.log &
-done < testData.txt
+            // Step 2: Read IDs from child.txt
+            List<String> childIDs = Files.readAllLines(Paths.get(childFilePath));
 
-# Wait for background processes to finish
-wait
+            // Step 3: Remove IDs from masterSet that exist in childIDs
+            masterSet.removeAll(childIDs);
+
+            // Step 4: Write the updated IDs back to updated_master.txt
+            Files.write(Paths.get(updatedMasterFilePath), masterSet);
+
+            System.out.println("Updated master file created: " + updatedMasterFilePath);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.err.println("Error processing files. Please check file paths and permissions.");
+        }
+    }
+}
