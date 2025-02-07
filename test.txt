@@ -1,33 +1,7 @@
-import java.io.*;
-import java.util.*;
-import java.nio.file.*;
+I ran the stats on the larger dataset, and here are the results.
+I have uploaded the Get Data, Adviser, and Difference.csv files to Teams.
+Franco has loaded data into the aut_family tables for Camada 202011. Now, I need to update the Camada values in the tables and run stats on the remaining attributes.
 
-public class RemoveIDs {
+I think we  should be ready to kick off 346 attributes adviser values  using the available data and analyze the results. To do this I first need to prepare the baseline values for all 346 attributes.
 
-    public static void main(String[] args) {
-        String masterFilePath = "master.txt"; // Path to the master file
-        String childFilePath = "child.txt";   // Path to the child file
-        String updatedMasterFilePath = "updated_master.txt"; // Path for the updated master file
-
-        try {
-            // Step 1: Read IDs from master.txt
-            List<String> masterIDs = Files.readAllLines(Paths.get(masterFilePath));
-            Set<String> masterSet = new HashSet<>(masterIDs); // Use a set for faster lookups
-
-            // Step 2: Read IDs from child.txt
-            List<String> childIDs = Files.readAllLines(Paths.get(childFilePath));
-
-            // Step 3: Remove IDs from masterSet that exist in childIDs
-            masterSet.removeAll(childIDs);
-
-            // Step 4: Write the updated IDs back to updated_master.txt
-            Files.write(Paths.get(updatedMasterFilePath), masterSet);
-
-            System.out.println("Updated master file created: " + updatedMasterFilePath);
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.err.println("Error processing files. Please check file paths and permissions.");
-        }
-    }
-}
+While I work on these baseline values, could you please review the attributes that have a match percentage below 99%.
