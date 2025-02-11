@@ -2,11 +2,21 @@ DO $$
 DECLARE 
     r RECORD;
 BEGIN
-    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'icrsmismatch') 
+    FOR r IN 
+        (SELECT tablename FROM pg_tables WHERE schemaname = 'test1') 
     LOOP
-        EXECUTE 'DROP TABLE icrsmismatch.' || r.tablename || ' CASCADE';
+        EXECUTE format('CREATE TABLE test2.%I AS TABLE test1.%I WITH NO DATA', r.tablename, r.tablename);
     END LOOP;
 END $$;
 
 
-pg_dump -U your_user -h your_host -d your_database -n icrsmismatchalgos | psql -U your_user -h your_host -d your_database -n icrsmismatch
+DO $$ 
+DECLARE 
+    r RECORD;
+BEGIN
+    FOR r IN 
+        (SELECT tablename FROM pg_tables WHERE schemaname = 'test1') 
+    LOOP
+        EXECUTE format('INSERT INTO test2.%I SELECT * FROM test1.%I', r.tablename, r.tablename);
+    END LOOP;
+END $$;
