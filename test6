@@ -1,6 +1,12 @@
+DO $$ 
+DECLARE 
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'icrsmismatch') 
+    LOOP
+        EXECUTE 'DROP TABLE icrsmismatch.' || r.tablename || ' CASCADE';
+    END LOOP;
+END $$;
 
-Here’s your edited and corrected sentence:
 
-"There are some fixes on the BDS side and also from the Adviser side. After these fixes, when I used the same old data and ran the GET data and Adviser output, the stats are significantly improved, as shown below.
-
-Currently, the TW service is down, so I cannot run a larger dataset for testing. Once the service is up and running, I will try to run it for individual families and post the latest stats."
+pg_dump -U your_user -h your_host -d your_database -n icrsmismatchalgos | psql -U your_user -h your_host -d your_database -n icrsmismatch
