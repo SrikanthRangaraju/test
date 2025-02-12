@@ -1,20 +1,77 @@
-DO $$ 
-DECLARE 
-    idx_record RECORD;
-BEGIN
-    FOR idx_record IN 
-        SELECT indexname, tablename, indexdef 
-        FROM pg_indexes 
-        WHERE schemaname = 'schema1'
-    LOOP
-        BEGIN
-            -- Modify index definition to refer to schema2
-            EXECUTE regexp_replace(idx_record.indexdef, 'ON schema1\.', 'ON schema2.', 'g');
-        EXCEPTION 
-            WHEN duplicate_object THEN 
-                RAISE NOTICE 'Index % already exists on schema2.%', idx_record.indexname, idx_record.tablename;
-            WHEN OTHERS THEN 
-                RAISE WARNING 'Error creating index %: %', idx_record.indexname, SQLERRM;
-        END;
-    END LOOP;
-END $$;
+import java.io.*;
+
+public class CSVProcessor {
+    public static void main(String[] args) {
+        String inputFile = "C:\\main\\exp2.csv"; // Original input file
+        String filteredFile = "C:\\main\\filtered_exp2.csv"; // After removing rows with 'E'
+        String finalOutputFile = "C:\\main\\filtered_exp3.csv"; // After removing ".0"
+
+        // Step 1: Remove rows containing 'E' in sj_subject_id
+        filterCSV(inputFile, filteredFile);
+
+        // Step 2: Remove ".0" from sj_subject_id
+        cleanDecimalSuffix(filteredFile, finalOutputFile);
+    }
+
+    /**
+     * Step 1: Reads a CSV file and removes rows where sj_subject_id contains 'E'
+     */
+    public static void filterCSV(String inputFile, String outputFile) {
+        try (BufferedReader br = new BufferedReader(new FileReader(inputFile));
+             BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile))) {
+
+            String header = br.readLine(); // Read the header
+            if (header != null) {
+                bw.write(header); // Write header to output file
+                bw.newLine();
+            }
+
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(",", 2); // Split only at the first comma
+                if (!values[0].contains("E")) { // Check if sj_subject_id contains 'E'
+                    bw.write(line);
+                    bw.newLine();
+                }
+            }
+
+            System.out.println("Filtered CSV file created: " + outputFile);
+
+        } catch (IOException e) {
+            System.err.println("Error processing file: " + inputFile);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Step 2: Reads filtered CSV and removes '.0' from sj_subject_id
+     */
+    public static void cleanDecimalSuffix(String inputFile, String outputFile) {
+        try (BufferedReader br = new BufferedReader(new FileReader(inputFile));
+             BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile))) {
+
+            String header = br.readLine(); // Read the header
+            if (header != null) {
+                bw.write(header); // Write header to output file
+                bw.newLine();
+            }
+
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(",", 2); // Split only at the first comma
+                if (values.length > 1) {
+                    // Remove ".0" if it's at the end of sj_subject_id
+                    values[0] = values[0].endsWith(".0") ? values[0].replace(".0", "") : values[0];
+                    bw.write(String.join(",", values));
+                    bw.newLine();
+                }
+            }
+
+            System.out.println("Final cleaned CSV file created: " + outputFile);
+
+        } catch (IOException e) {
+            System.err.println("Error processing file: " + inputFile);
+            e.printStackTrace();
+        }
+    }
+}
