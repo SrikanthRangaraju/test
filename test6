@@ -1,22 +1,8 @@
-DO $$ 
-DECLARE 
-    r RECORD;
-BEGIN
-    FOR r IN 
-        (SELECT tablename FROM pg_tables WHERE schemaname = 'test1') 
-    LOOP
-        EXECUTE format('CREATE TABLE test2.%I AS TABLE test1.%I WITH NO DATA', r.tablename, r.tablename);
-    END LOOP;
-END $$;
+The latest UAT data files were shared by Ellyn.
+Though there were some issues, I applied a workaround and was able to load 40% of the shared data.
 
+I have requested Aswin to create a new instance of Get Data, pointing to the latest schema we created and the data loaded.
 
-DO $$ 
-DECLARE 
-    r RECORD;
-BEGIN
-    FOR r IN 
-        (SELECT tablename FROM pg_tables WHERE schemaname = 'test1') 
-    LOOP
-        EXECUTE format('INSERT INTO test2.%I SELECT * FROM test1.%I', r.tablename, r.tablename);
-    END LOOP;
-END $$;
+I have also shared the valid subject IDs to extract the Get Data and generate the Adviser values.
+
+The expectation for this run is to determine whether the data was successfully loaded for the subject IDs I processed and to assess the performance of the Get Data extraction. Additionally, we need to check for any missing data or segments in the extracted data.
