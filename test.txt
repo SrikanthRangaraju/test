@@ -1,7 +1,20 @@
-I ran the stats on the larger dataset, and here are the results.
-I have uploaded the Get Data, Adviser, and Difference.csv files to Teams.
-Franco has loaded data into the aut_family tables for Camada 202011. Now, I need to update the Camada values in the tables and run stats on the remaining attributes.
-
-I think we  should be ready to kick off 346 attributes adviser values  using the available data and analyze the results. To do this I first need to prepare the baseline values for all 346 attributes.
-
-While I work on these baseline values, could you please review the attributes that have a match percentage below 99%.
+DO $$ 
+DECLARE 
+    idx_record RECORD;
+BEGIN
+    FOR idx_record IN 
+        SELECT indexname, tablename, indexdef 
+        FROM pg_indexes 
+        WHERE schemaname = 'schema1'
+    LOOP
+        BEGIN
+            -- Modify index definition to refer to schema2
+            EXECUTE regexp_replace(idx_record.indexdef, 'ON schema1\.', 'ON schema2.', 'g');
+        EXCEPTION 
+            WHEN duplicate_object THEN 
+                RAISE NOTICE 'Index % already exists on schema2.%', idx_record.indexname, idx_record.tablename;
+            WHEN OTHERS THEN 
+                RAISE WARNING 'Error creating index %: %', idx_record.indexname, SQLERRM;
+        END;
+    END LOOP;
+END $$;
