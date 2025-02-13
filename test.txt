@@ -121,49 +121,34 @@ public class CSVFolderComparator {
         }
     }
 
-    private static Map<String, Map<String, String>> readCSV(File csvFile, Set<String> rowIds, List<String> columns) {
-        Map<String, Map<String, String>> data = new LinkedHashMap<>();
-        if (!csvFile.exists()) {
-            System.out.println("CSV file not found: " + csvFile.getAbsolutePath());
-            return data;
-        }
+    private static void writeDifferences(File setFolder, List<String[]> differences) {
+        File diffFile = new File(setFolder, "differences.csv");
 
-        try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
-            String[] headers = br.readLine().split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1);
-            Map<String, Integer> headerIndex = new HashMap<>();
-
-            for (int i = 0; i < headers.length; i++) {
-                headerIndex.put(headers[i].trim().toLowerCase(), i);
-            }
-
-            Integer subjectIdx = headerIndex.get("subjectid");
-            if (subjectIdx == null) {
-                System.out.println("SubjectID column not found in " + csvFile.getName());
-                return data;
-            }
-
-            Map<String, Integer> columnIndices = columns.stream()
-                    .collect(Collectors.toMap(col -> col, col -> headerIndex.getOrDefault(col.toLowerCase(), -1)));
-
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] row = line.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1);
-                if (row.length <= subjectIdx) continue;
-
-                String subjectId = row[subjectIdx].trim();
-                if (!rowIds.contains(subjectId)) continue;
-
-                Map<String, String> rowData = new LinkedHashMap<>();
-                for (String column : columns) {
-                    int idx = columnIndices.get(column);
-                    rowData.put(column, (idx >= 0 && idx < row.length) ? row[idx].trim() : null);
-                }
-                data.put(subjectId, rowData);
+        try (PrintWriter writer = new PrintWriter(new FileWriter(diffFile))) {
+            writer.println("SubjectID,Column,Actual,Expected");
+            for (String[] diff : differences) {
+                writer.println(String.join(",", diff));
             }
         } catch (IOException e) {
-            System.out.println("Error reading CSV file: " + e.getMessage());
+            System.out.println("Error writing differences file: " + e.getMessage());
         }
-        return data;
+    }
+
+    private static void writeSummaryReport(File setFolder, Map<String, int[]> columnStats, int totalRows) {
+        File reportFile = new File(setFolder, "summary_report.txt");
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter(reportFile))) {
+            writer.println("Total number of rowIDs to consider for mismatch: " + totalRows);
+            writer.println("Column Name and Percentage of Mismatch:");
+
+            for (Map.Entry<String, int[]> entry : columnStats.entrySet()) {
+                int[] stats = entry.getValue();
+                double percentage = (stats[0] * 100.0) / stats[1];
+                writer.printf("%s: %d out of %d (%.2f%%)\n", entry.getKey(), stats[0], stats[1], percentage);
+            }
+        } catch (IOException e) {
+            System.out.println("Error writing summary report: " + e.getMessage());
+        }
     }
 
     private static boolean areValuesEqual(String actual, String expected) {
