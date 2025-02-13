@@ -1,182 +1,26 @@
-import java.io.*;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.*;
-import java.util.stream.Collectors;
-
-public class CSVFolderComparator {
-
-    private static final double TOLERANCE = 0.5; // Set tolerance threshold
-
-    public static void main(String[] args) {
-        String mainFolderPath = "C://main/";
-        File mainFolder = new File(mainFolderPath);
-        File[] setFolders = mainFolder.listFiles(File::isDirectory);
-
-        if (setFolders != null) {
-            for (File setFolder : setFolders) {
-                processSetFolder(setFolder);
-            }
-        }
+private static String formatValue(String value) {
+    if (value == null || value.trim().isEmpty() || value.equalsIgnoreCase("null")) {
+        return "MISSING";  // Handle null/missing values
     }
-
-    private static void processSetFolder(File setFolder) {
-        Set<String> rowIds = readRowIds(setFolder);
-        List<String> columns = readColumns(setFolder);
-
-        if (rowIds.isEmpty() || columns.isEmpty()) {
-            System.err.println("No row IDs or columns to process in " + setFolder.getName());
-            return;
-        }
-
-        // 🚀 Limit processing to 5 rows for faster debugging
-        Set<String> limitedRowIds = rowIds.stream().limit(5).collect(Collectors.toSet());
-        System.out.println("Processing only " + limitedRowIds.size() + " rows for testing.");
-
-        System.out.println("Reading actual CSV...");
-        Map<String, Map<String, String>> actualData = readCSV(new File(setFolder, "actualoutputfile.csv"), limitedRowIds, columns);
-        System.out.println("Actual CSV read complete.");
-
-        System.out.println("Reading expected CSV...");
-        Map<String, Map<String, String>> expectedData = readCSV(new File(setFolder, "expectedoutputfile.csv"), limitedRowIds, columns);
-        System.out.println("Expected CSV read complete.");
-
-        List<String[]> differences = new ArrayList<>();
-        Map<String, int[]> columnStats = new HashMap<>();
-        columns.forEach(column -> columnStats.put(column, new int[2]));
-
-        for (String rowId : limitedRowIds) {
-            Map<String, String> actualRow = actualData.get(rowId);
-            Map<String, String> expectedRow = expectedData.get(rowId);
-
-            for (String column : columns) {
-                int[] stats = columnStats.get(column);
-                stats[1]++; // Total comparisons
-
-                String actualValue = (actualRow != null) ? actualRow.get(column) : "MISSING";
-                String expectedValue = (expectedRow != null) ? expectedRow.get(column) : "MISSING";
-
-                System.out.println("Comparing Row: " + rowId + ", Column: " + column);
-                System.out.println("Actual: " + actualValue + " | Expected: " + expectedValue);
-
-                if (!areValuesEqual(actualValue, expectedValue)) {
-                    differences.add(new String[]{rowId, column, formatValue(actualValue), formatValue(expectedValue)});
-                } else {
-                    stats[0]++;
-                }
-            }
-        }
-
-        System.out.println("Total Differences Found: " + differences.size());
-
-        System.out.println("Writing differences to file...");
-        writeDifferences(setFolder, differences);
-        System.out.println("Differences file written successfully.");
-
-        System.out.println("Writing summary report...");
-        writeSummaryReport(setFolder, columnStats, limitedRowIds.size());
-        System.out.println("Summary report written successfully.");
+    try {
+        BigDecimal number = new BigDecimal(value.trim()).setScale(5, RoundingMode.HALF_UP);
+        return number.stripTrailingZeros().toPlainString();
+    } catch (NumberFormatException e) {
+        return value.trim(); // Return as-is if not a number
     }
+}
 
-    private static Set<String> readRowIds(File setFolder) {
-        Set<String> rowIds = new HashSet<>();
-        File file = new File(setFolder, "rowidstocompareformismatch.txt");
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                rowIds.add(line.trim());
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return rowIds;
+
+private static boolean areValuesEqual(String actual, String expected) {
+    if (actual == null || expected == null) {
+        return false; // If one of them is null, treat as different
     }
+    try {
+        BigDecimal actualNum = new BigDecimal(actual.trim()).setScale(5, RoundingMode.HALF_UP);
+        BigDecimal expectedNum = new BigDecimal(expected.trim()).setScale(5, RoundingMode.HALF_UP);
 
-    private static List<String> readColumns(File setFolder) {
-        List<String> columns = new ArrayList<>();
-        File file = new File(setFolder, "columnstocompareformismatch.txt");
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                columns.add(line.trim());
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return columns;
-    }
-
-    private static Map<String, Map<String, String>> readCSV(File csvFile, Set<String> rowIds, List<String> columns) {
-        Map<String, Map<String, String>> data = new HashMap<>();
-        if (!csvFile.exists()) return data;
-
-        try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
-            String headerLine = br.readLine();
-            if (headerLine == null) return data;
-
-            String[] headers = headerLine.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
-            Map<String, Integer> headerIndex = new HashMap<>();
-            for (int i = 0; i < headers.length; i++) {
-                headerIndex.put(headers[i].trim().toLowerCase(), i);
-            }
-
-            Integer subjectIdIdx = headerIndex.get("subjectid");
-            if (subjectIdIdx == null) {
-                System.err.println("SubjectID column not found in " + csvFile.getName());
-                return data;
-            }
-
-            Map<String, Integer> columnIndices = new HashMap<>();
-            for (String column : columns) {
-                if (headerIndex.containsKey(column.toLowerCase().trim())) {
-                    columnIndices.put(column, headerIndex.get(column.toLowerCase().trim()));
-                }
-            }
-
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] row = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
-                String subjectId = row[subjectIdIdx].trim();
-
-                if (rowIds.contains(subjectId)) {
-                    Map<String, String> rowData = new HashMap<>();
-                    for (String column : columns) {
-                        Integer idx = columnIndices.get(column);
-                        String value = (idx != null && idx < row.length) ? row[idx].trim() : "MISSING";
-                        rowData.put(column, value);
-                    }
-                    data.put(subjectId, rowData);
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return data;
-    }
-
-    private static boolean areValuesEqual(String actual, String expected) {
-        if (actual == null || expected == null || actual.equals("MISSING") || expected.equals("MISSING")) {
-            return false; // Missing values are not equal
-        }
-        try {
-            BigDecimal actualNum = new BigDecimal(actual.trim()).setScale(5, RoundingMode.HALF_UP);
-            BigDecimal expectedNum = new BigDecimal(expected.trim()).setScale(5, RoundingMode.HALF_UP);
-
-            return actualNum.subtract(expectedNum).abs().compareTo(BigDecimal.valueOf(TOLERANCE)) <= 0;
-        } catch (NumberFormatException e) {
-            return actual.trim().equalsIgnoreCase(expected.trim()); // Fallback for non-numeric values
-        }
-    }
-
-    private static String formatValue(String value) {
-        if (value == null || value.trim().isEmpty() || value.equalsIgnoreCase("null")) {
-            return "MISSING";
-        }
-        try {
-            BigDecimal number = new BigDecimal(value.trim()).setScale(5, RoundingMode.HALF_UP);
-            return number.stripTrailingZeros().toPlainString();
-        } catch (NumberFormatException e) {
-            return value.trim();
-        }
+        return actualNum.subtract(expectedNum).abs().compareTo(BigDecimal.valueOf(TOLERANCE)) <= 0;
+    } catch (NumberFormatException e) {
+        return actual.trim().equalsIgnoreCase(expected.trim()); // Fallback for non-numeric values
     }
 }
