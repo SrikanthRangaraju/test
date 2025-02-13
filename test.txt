@@ -1,26 +1,194 @@
-private static String formatValue(String value) {
-    if (value == null || value.trim().isEmpty() || value.equalsIgnoreCase("null")) {
-        return "MISSING";  // Handle null/missing values
-    }
-    try {
-        BigDecimal number = new BigDecimal(value.trim()).setScale(5, RoundingMode.HALF_UP);
-        return number.stripTrailingZeros().toPlainString();
-    } catch (NumberFormatException e) {
-        return value.trim(); // Return as-is if not a number
-    }
-}
+package stats;
 
+import java.io.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.file.Files;
+import java.util.*;
+import java.util.stream.Collectors;
 
-private static boolean areValuesEqual(String actual, String expected) {
-    if (actual == null || expected == null) {
-        return false; // If one of them is null, treat as different
+public class CSVFolderComparator {
+
+    private static final double TOLERANCE = 1.0; // Set tolerance threshold
+
+    public static void main(String[] args) {
+        String mainFolderPath = "C://main/";
+        File mainFolder = new File(mainFolderPath);
+        File[] setFolders = mainFolder.listFiles(File::isDirectory);
+
+        if (setFolders != null) {
+            for (File setFolder : setFolders) {
+                processSetFolder(setFolder);
+            }
+        }
     }
-    try {
-        BigDecimal actualNum = new BigDecimal(actual.trim()).setScale(5, RoundingMode.HALF_UP);
-        BigDecimal expectedNum = new BigDecimal(expected.trim()).setScale(5, RoundingMode.HALF_UP);
 
-        return actualNum.subtract(expectedNum).abs().compareTo(BigDecimal.valueOf(TOLERANCE)) <= 0;
-    } catch (NumberFormatException e) {
-        return actual.trim().equalsIgnoreCase(expected.trim()); // Fallback for non-numeric values
+    private static void processSetFolder(File setFolder) {
+        Set<String> rowIds = readRows(setFolder);
+        List<String> columns = readColumns(setFolder);
+
+        if (rowIds.isEmpty() || columns.isEmpty()) {
+            return; // Skip processing if no data
+        }
+
+        Map<String, Map<String, String>> actualData = readCSV(new File(setFolder, "actualoutputfile.csv"), rowIds, columns);
+        Map<String, Map<String, String>> expectedData = readCSV(new File(setFolder, "expectedoutputfile.csv"), rowIds, columns);
+
+        List<String[]> differences = new ArrayList<>();
+        Map<String, int[]> columnStats = new HashMap<>();
+
+        columns.forEach(column -> columnStats.put(column, new int[2]));
+
+        for (String rowId : rowIds) {
+            Map<String, String> actualRow = actualData.getOrDefault(rowId, Collections.emptyMap());
+            Map<String, String> expectedRow = expectedData.getOrDefault(rowId, Collections.emptyMap());
+
+            for (String column : columns) {
+                int[] stats = columnStats.get(column);
+                stats[1]++; // Total comparisons
+
+                String actualValue = actualRow.get(column);
+                String expectedValue = expectedRow.get(column);
+
+                if (!areValuesEqual(actualValue, expectedValue)) {
+                    differences.add(new String[]{rowId, column, formatValue(actualValue), formatValue(expectedValue)});
+                    stats[0]++;
+                }
+            }
+        }
+
+        writeDifferences(setFolder, differences);
+        writeSummaryReport(setFolder, columnStats, rowIds.size());
+    }
+
+    private static Set<String> readRows(File setFolder) {
+        File file = new File(setFolder, "rowmismatch.txt");
+        if (!file.exists()) return Collections.emptySet();
+
+        try {
+            return Files.lines(file.toPath())
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toSet());
+        } catch (IOException e) {
+            e.printStackTrace();
+            return Collections.emptySet();
+        }
+    }
+
+    private static List<String> readColumns(File setFolder) {
+        File file = new File(setFolder, "columnstocomparemismatch.txt");
+        if (!file.exists()) return Collections.emptyList();
+
+        try {
+            return Files.lines(file.toPath())
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+    }
+
+    private static Map<String, Map<String, String>> readCSV(File csvFile, Set<String> rowIds, List<String> columns) {
+        Map<String, Map<String, String>> data = new LinkedHashMap<>();
+        if (!csvFile.exists()) return data;
+
+        try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
+            String[] headers = br.readLine().split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+            Map<String, Integer> headerIndex = new HashMap<>();
+
+            for (int i = 0; i < headers.length; i++) {
+                headerIndex.put(headers[i].trim().toLowerCase(), i);
+            }
+
+            Integer subjectIdx = headerIndex.get("subjectid");
+            if (subjectIdx == null) return data;
+
+            Map<String, Integer> columnIndices = columns.stream()
+                    .collect(Collectors.toMap(col -> col, col -> headerIndex.getOrDefault(col.toLowerCase(), -1)));
+
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] row = line.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+                if (row.length <= subjectIdx) continue;
+
+                String subjectId = row[subjectIdx].trim();
+                if (!rowIds.contains(subjectId)) continue;
+
+                Map<String, String> rowData = new LinkedHashMap<>();
+                for (String column : columns) {
+                    int idx = columnIndices.get(column);
+                    rowData.put(column, (idx >= 0 && idx < row.length) ? row[idx].trim() : null);
+                }
+                data.put(subjectId, rowData);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return data;
+    }
+
+    private static boolean areValuesEqual(String actual, String expected) {
+        if ((actual == null || actual.trim().isEmpty()) && (expected == null || expected.trim().isEmpty())) {
+            return true;
+        }
+        if (expected == null || expected.trim().isEmpty()) {
+            return true;
+        }
+        if (actual == null || actual.trim().isEmpty()) {
+            return false;
+        }
+
+        try {
+            BigDecimal actualNum = new BigDecimal(actual.trim()).setScale(5, RoundingMode.HALF_UP);
+            BigDecimal expectedNum = new BigDecimal(expected.trim()).setScale(5, RoundingMode.HALF_UP);
+            return actualNum.subtract(expectedNum).compareTo(BigDecimal.valueOf(TOLERANCE)) <= 0;
+        } catch (NumberFormatException e) {
+            return actual.trim().equalsIgnoreCase(expected.trim());
+        }
+    }
+
+    private static String formatValue(String value) {
+        if (value == null || value.trim().isEmpty() || value.equalsIgnoreCase("null")) {
+            return "MISSING";
+        }
+        try {
+            BigDecimal number = new BigDecimal(value.trim()).setScale(5, RoundingMode.HALF_UP);
+            return number.stripTrailingZeros().toPlainString();
+        } catch (NumberFormatException e) {
+            return value.trim();
+        }
+    }
+
+    private static void writeDifferences(File setFolder, List<String[]> differences) {
+        File diffFile = new File(setFolder, "differences.csv");
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter(diffFile))) {
+            writer.println("SubjectID,Column,Actual,Expected");
+            for (String[] diff : differences) {
+                writer.println(String.join(",", diff));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void writeSummaryReport(File setFolder, Map<String, int[]> columnStats, int totalRows) {
+        File reportFile = new File(setFolder, "summary_report.txt");
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter(reportFile))) {
+            writer.println("Total number of rowIDs to consider for mismatch: " + totalRows);
+            writer.println("Column Name and Percentage of Mismatch:");
+
+            for (Map.Entry<String, int[]> entry : columnStats.entrySet()) {
+                int[] stats = entry.getValue();
+                double percentage = (stats[0] * 100.0) / stats[1];
+                writer.printf("%s: %d out of %d (%.2f%%)\n", entry.getKey(), stats[0], stats[1], percentage);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
