@@ -1,200 +1,21 @@
-package stats;
+private static void writeSummaryReport(File setFolder, Map<String, int[]> columnStats, int totalRows) {
+    File reportFile = new File(setFolder, "summary_report.txt");
 
-import java.io.*;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.nio.file.Files;
-import java.util.*;
-import java.util.stream.Collectors;
+    try (PrintWriter writer = new PrintWriter(new FileWriter(reportFile))) {
+        writer.println("Total number of rowIDs to consider for match: " + totalRows);
+        writer.println("Column Name and Percentage of Match:");
 
-public class CSVFolderComparator {
+        for (Map.Entry<String, int[]> entry : columnStats.entrySet()) {
+            int[] stats = entry.getValue();
+            int mismatches = stats[0];
+            int totalComparisons = stats[1];
 
-    private static final double TOLERANCE = 1.0; // Set tolerance threshold
+            // Calculate percentage of match
+            double matchPercentage = 100.0 - ((mismatches * 100.0) / totalComparisons);
 
-    public static void main(String[] args) {
-        String mainFolderPath = "C://main/";
-        File mainFolder = new File(mainFolderPath);
-        File[] setFolders = mainFolder.listFiles(File::isDirectory);
-
-        if (setFolders == null || setFolders.length == 0) {
-            System.out.println("No folders found in the main directory: " + mainFolderPath);
-            return;
+            writer.printf("%s: %d out of %d (%.2f%% match)\n", entry.getKey(), totalComparisons - mismatches, totalComparisons, matchPercentage);
         }
-
-        for (File setFolder : setFolders) {
-            System.out.println("\nProcessing folder: " + setFolder.getName());
-            processSetFolder(setFolder);
-        }
-    }
-
-    private static void processSetFolder(File setFolder) {
-        System.out.println("Reading row mismatch file...");
-        Set<String> rowIds = readRows(setFolder);
-        System.out.println("Total row IDs found: " + rowIds.size());
-
-        System.out.println("Reading column mismatch file...");
-        List<String> columns = readColumns(setFolder);
-        System.out.println("Total columns found: " + columns.size());
-
-        if (rowIds.isEmpty() || columns.isEmpty()) {
-            System.out.println("Skipping folder " + setFolder.getName() + " (No row IDs or columns found)");
-            return;
-        }
-
-        System.out.println("Reading actual CSV...");
-        Map<String, Map<String, String>> actualData = readCSV(new File(setFolder, "actualoutputfile.csv"), rowIds, columns);
-        System.out.println("Actual CSV read successfully. Total rows: " + actualData.size());
-
-        System.out.println("Reading expected CSV...");
-        Map<String, Map<String, String>> expectedData = readCSV(new File(setFolder, "expectedoutputfile.csv"), rowIds, columns);
-        System.out.println("Expected CSV read successfully. Total rows: " + expectedData.size());
-
-        List<String[]> differences = new ArrayList<>();
-        Map<String, int[]> columnStats = new HashMap<>();
-
-        columns.forEach(column -> columnStats.put(column, new int[2]));
-
-        for (String rowId : rowIds) {
-            Map<String, String> actualRow = actualData.getOrDefault(rowId, Collections.emptyMap());
-            Map<String, String> expectedRow = expectedData.getOrDefault(rowId, Collections.emptyMap());
-
-            for (String column : columns) {
-                int[] stats = columnStats.get(column);
-                stats[1]++; // Total comparisons
-
-                String actualValue = actualRow.get(column);
-                String expectedValue = expectedRow.get(column);
-
-                if (!areValuesEqual(actualValue, expectedValue)) {
-                    differences.add(new String[]{rowId, column, formatValue(actualValue), formatValue(expectedValue)});
-                    stats[0]++;
-                }
-            }
-        }
-
-        System.out.println("Total Differences Found: " + differences.size());
-
-        System.out.println("Writing differences to file...");
-        writeDifferences(setFolder, differences);
-        System.out.println("Differences written successfully.");
-
-        System.out.println("Writing summary report...");
-        writeSummaryReport(setFolder, columnStats, rowIds.size());
-        System.out.println("Summary report written successfully.");
-
-        System.out.println("Finished processing folder: " + setFolder.getName());
-    }
-
-    private static Set<String> readRows(File setFolder) {
-        File file = new File(setFolder, "rowmismatch.txt");
-        if (!file.exists()) {
-            System.out.println("File not found: " + file.getAbsolutePath());
-            return Collections.emptySet();
-        }
-
-        try {
-            return Files.lines(file.toPath())
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .collect(Collectors.toSet());
-        } catch (IOException e) {
-            System.out.println("Error reading row mismatch file: " + e.getMessage());
-            return Collections.emptySet();
-        }
-    }
-
-    private static List<String> readColumns(File setFolder) {
-        File file = new File(setFolder, "columnstocomparemismatch.txt");
-        if (!file.exists()) {
-            System.out.println("File not found: " + file.getAbsolutePath());
-            return Collections.emptyList();
-        }
-
-        try {
-            return Files.lines(file.toPath())
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .collect(Collectors.toList());
-        } catch (IOException e) {
-            System.out.println("Error reading column mismatch file: " + e.getMessage());
-            return Collections.emptyList();
-        }
-    }
-
-    private static Map<String, Map<String, String>> readCSV(File csvFile, Set<String> rowIds, List<String> columns) {
-        Map<String, Map<String, String>> data = new LinkedHashMap<>();
-        if (!csvFile.exists()) {
-            System.out.println("CSV file not found: " + csvFile.getAbsolutePath());
-            return data;
-        }
-
-        try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
-            String[] headers = br.readLine().split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1);
-            Map<String, Integer> headerIndex = new HashMap<>();
-
-            for (int i = 0; i < headers.length; i++) {
-                headerIndex.put(headers[i].trim().toLowerCase(), i);
-            }
-
-            Integer subjectIdx = headerIndex.get("subjectid");
-            if (subjectIdx == null) {
-                System.out.println("SubjectID column not found in " + csvFile.getName());
-                return data;
-            }
-
-            Map<String, Integer> columnIndices = columns.stream()
-                    .collect(Collectors.toMap(col -> col, col -> headerIndex.getOrDefault(col.toLowerCase(), -1)));
-
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] row = line.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)", -1);
-                if (row.length <= subjectIdx) continue;
-
-                String subjectId = row[subjectIdx].trim();
-                if (!rowIds.contains(subjectId)) continue;
-
-                Map<String, String> rowData = new LinkedHashMap<>();
-                for (String column : columns) {
-                    int idx = columnIndices.get(column);
-                    rowData.put(column, (idx >= 0 && idx < row.length) ? row[idx].trim() : null);
-                }
-                data.put(subjectId, rowData);
-            }
-        } catch (IOException e) {
-            System.out.println("Error reading CSV file: " + e.getMessage());
-        }
-        return data;
-    }
-
-    private static boolean areValuesEqual(String actual, String expected) {
-        if ((actual == null || actual.trim().isEmpty()) && (expected == null || expected.trim().isEmpty())) {
-            return true;
-        }
-        if (expected == null || expected.trim().isEmpty()) {
-            return true;
-        }
-        if (actual == null || actual.trim().isEmpty()) {
-            return false;
-        }
-
-        try {
-            BigDecimal actualNum = new BigDecimal(actual.trim()).setScale(5, RoundingMode.HALF_UP);
-            BigDecimal expectedNum = new BigDecimal(expected.trim()).setScale(5, RoundingMode.HALF_UP);
-            return actualNum.subtract(expectedNum).compareTo(BigDecimal.valueOf(TOLERANCE)) <= 0;
-        } catch (NumberFormatException e) {
-            return actual.trim().equalsIgnoreCase(expected.trim());
-        }
-    }
-
-    private static String formatValue(String value) {
-        if (value == null || value.trim().isEmpty() || value.equalsIgnoreCase("null")) {
-            return "MISSING";
-        }
-        try {
-            BigDecimal number = new BigDecimal(value.trim()).setScale(5, RoundingMode.HALF_UP);
-            return number.stripTrailingZeros().toPlainString();
-        } catch (NumberFormatException e) {
-            return value.trim();
-        }
+    } catch (IOException e) {
+        System.out.println("Error writing summary report: " + e.getMessage());
     }
 }
