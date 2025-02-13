@@ -1,3 +1,4 @@
+package stats;
 
 import java.io.*;
 import java.math.BigDecimal;
@@ -165,33 +166,35 @@ public class CSVFolderComparator {
         return data;
     }
 
-    private static void writeDifferences(File setFolder, List<String[]> differences) {
-        File diffFile = new File(setFolder, "differences.csv");
+    private static boolean areValuesEqual(String actual, String expected) {
+        boolean actualIsEmpty = (actual == null || actual.trim().isEmpty());
+        boolean expectedIsEmpty = (expected == null || expected.trim().isEmpty());
 
-        try (PrintWriter writer = new PrintWriter(new FileWriter(diffFile))) {
-            writer.println("SubjectID,Column,Actual,Expected");
-            for (String[] diff : differences) {
-                writer.println(String.join(",", diff));
-            }
-        } catch (IOException e) {
-            System.out.println("Error writing differences file: " + e.getMessage());
+        if (expectedIsEmpty) {
+            return true;
+        }
+        if (actualIsEmpty) {
+            return false;
+        }
+
+        try {
+            BigDecimal actualNum = new BigDecimal(actual.trim()).setScale(5, RoundingMode.HALF_UP);
+            BigDecimal expectedNum = new BigDecimal(expected.trim()).setScale(5, RoundingMode.HALF_UP);
+            return actualNum.subtract(expectedNum).compareTo(BigDecimal.valueOf(TOLERANCE)) <= 0;
+        } catch (NumberFormatException e) {
+            return actual.trim().equalsIgnoreCase(expected.trim());
         }
     }
 
-    private static void writeSummaryReport(File setFolder, Map<String, int[]> columnStats, int totalRows) {
-        File reportFile = new File(setFolder, "summary_report.txt");
-
-        try (PrintWriter writer = new PrintWriter(new FileWriter(reportFile))) {
-            writer.println("Total number of rowIDs to consider for mismatch: " + totalRows);
-            writer.println("Column Name and Percentage of Mismatch:");
-
-            for (Map.Entry<String, int[]> entry : columnStats.entrySet()) {
-                int[] stats = entry.getValue();
-                double percentage = (stats[0] * 100.0) / stats[1];
-                writer.printf("%s: %d out of %d (%.2f%%)\n", entry.getKey(), stats[0], stats[1], percentage);
-            }
-        } catch (IOException e) {
-            System.out.println("Error writing summary report: " + e.getMessage());
+    private static String formatValue(String value) {
+        if (value == null || value.trim().isEmpty() || value.equalsIgnoreCase("null")) {
+            return "MISSING";
+        }
+        try {
+            BigDecimal number = new BigDecimal(value.trim()).setScale(5, RoundingMode.HALF_UP);
+            return number.stripTrailingZeros().toPlainString();
+        } catch (NumberFormatException e) {
+            return value.trim();
         }
     }
 }
