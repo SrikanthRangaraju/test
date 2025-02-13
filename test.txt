@@ -1,42 +1,39 @@
 private static void processSetFolder(File setFolder) {
+    System.out.println("Reading row IDs...");
     Set<String> rowIds = readRowIds(setFolder);
+    System.out.println("Row IDs read: " + rowIds.size());
+
+    System.out.println("Reading columns...");
     List<String> columns = readColumns(setFolder);
+    System.out.println("Columns read: " + columns.size());
 
     if (rowIds.isEmpty() || columns.isEmpty()) {
         System.err.println("No row IDs or columns to process in " + setFolder.getName());
         return;
     }
 
-    // 🚀 Limit processing to 10 rows for testing
     Set<String> limitedRowIds = rowIds.stream().limit(10).collect(Collectors.toSet());
     System.out.println("Processing only " + limitedRowIds.size() + " rows for testing.");
 
+    System.out.println("Reading actualoutputfile.csv...");
     Map<String, Map<String, String>> actualData = readCSV(new File(setFolder, "actualoutputfile.csv"), limitedRowIds, columns);
+    System.out.println("Actual data read: " + actualData.size());
+
+    System.out.println("Reading expectedoutputfile.csv...");
     Map<String, Map<String, String>> expectedData = readCSV(new File(setFolder, "expectedoutputfile.csv"), limitedRowIds, columns);
+    System.out.println("Expected data read: " + expectedData.size());
 
     List<String[]> differences = new ArrayList<>();
     Map<String, int[]> columnStats = new HashMap<>();
     columns.forEach(column -> columnStats.put(column, new int[2]));
 
-    for (String rowId : limitedRowIds) { // Use limitedRowIds instead of rowIds
+    System.out.println("Comparing values...");
+    for (String rowId : limitedRowIds) {
         Map<String, String> actualRow = actualData.get(rowId);
         Map<String, String> expectedRow = expectedData.get(rowId);
 
         for (String column : columns) {
             int[] stats = columnStats.get(column);
-            stats[1]++; // Total comparisons
+            stats[1]++; 
 
-            String actualValue = (actualRow != null) ? actualRow.get(column) : "Row not present in actual";
-            String expectedValue = (expectedRow != null) ? expectedRow.get(column) : "Row not present in expected";
-
-            if (actualValue == null || expectedValue == null || !areValuesEqual(actualValue, expectedValue)) {
-                differences.add(new String[]{rowId, column, formatValue(actualValue), formatValue(expectedValue)});
-                continue;
-            }
-            stats[0]++;
-        }
-    }
-
-    writeDifferences(setFolder, differences);
-    writeSummaryReport(setFolder, columnStats, limitedRowIds.size());
-}
+            String actualValue = (actualRow != null)
