@@ -1,76 +1,215 @@
 import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
 
-public class CSVProcessor {
+public class CSVFolderComparator {
+
     public static void main(String[] args) {
-        String inputFile = "C:\\main\\exp2.csv"; // Original input file
-        String filteredFile = "C:\\main\\filtered_exp2.csv"; // After removing rows with 'E'
-        String finalOutputFile = "C:\\main\\filtered_exp3.csv"; // After removing ".0"
+        String mainFolderPath = "C://main/";
+        File mainFolder = new File(mainFolderPath);
+        File[] setFolders = mainFolder.listFiles(File::isDirectory);
 
-        // Step 1: Remove rows containing 'E' in sj_subject_id
-        filterCSV(inputFile, filteredFile);
-
-        // Step 2: Remove ".0" from sj_subject_id
-        cleanDecimalSuffix(filteredFile, finalOutputFile);
+        if (setFolders != null) {
+            for (File setFolder : setFolders) {
+                processSetFolder(setFolder);
+            }
+        } else {
+            System.err.println("No folders found in: " + mainFolderPath);
+        }
     }
 
-    /**
-     * Step 1: Reads a CSV file and removes rows where sj_subject_id contains 'E'
-     */
-    public static void filterCSV(String inputFile, String outputFile) {
-        try (BufferedReader br = new BufferedReader(new FileReader(inputFile));
-             BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile))) {
+    private static void processSetFolder(File setFolder) {
+        System.out.println("Processing folder: " + setFolder.getName());
 
-            String header = br.readLine(); // Read the header
-            if (header != null) {
-                bw.write(header); // Write header to output file
-                bw.newLine();
+        Set<String> rowIds = readRowIds(setFolder);
+        System.out.println("Total row IDs read: " + rowIds.size());
+
+        List<String> columns = readColumns(setFolder);
+        System.out.println("Total columns read: " + columns.size());
+
+        if (rowIds.isEmpty() || columns.isEmpty()) {
+            System.err.println("No row IDs or columns to process in " + setFolder.getName());
+            return;
+        }
+
+        System.out.println("Reading actual data...");
+        Map<String, Map<String, String>> actualData = readCSV(new File(setFolder, "actualoutputfile.csv"), rowIds, columns);
+        System.out.println("Actual data size: " + actualData.size());
+
+        System.out.println("Reading expected data...");
+        Map<String, Map<String, String>> expectedData = readCSV(new File(setFolder, "expectedoutputfile.csv"), rowIds, columns);
+        System.out.println("Expected data size: " + expectedData.size());
+
+        System.out.println("Starting comparison...");
+        List<String[]> differences = new ArrayList<>();
+        Map<String, int[]> columnStats = new HashMap<>();
+        columns.forEach(column -> columnStats.put(column, new int[2]));
+
+        int rowCount = 0;
+        for (String rowId : rowIds) {
+            System.out.println("Processing row ID: " + rowId);
+            rowCount++;
+
+            if (rowCount % 1000 == 0) {
+                System.out.println("Processed " + rowCount + " rows...");
+            }
+
+            Map<String, String> actualRow = actualData.get(rowId);
+            Map<String, String> expectedRow = expectedData.get(rowId);
+
+            if (actualRow == null || expectedRow == null) {
+                System.err.println("Missing row: " + rowId);
+                continue;
+            }
+
+            for (String column : columns) {
+                int[] stats = columnStats.get(column);
+                stats[1]++;
+
+                if (!actualRow.get(column).equals(expectedRow.get(column))) {
+                    differences.add(new String[]{rowId, column, actualRow.get(column), expectedRow.get(column)});
+                } else {
+                    stats[0]++;
+                }
+            }
+        }
+
+        System.out.println("Writing differences...");
+        writeDifferences(setFolder, differences);
+
+        System.out.println("Writing summary report...");
+        writeSummaryReport(setFolder, columnStats, rowIds.size());
+
+        System.out.println("Processing complete for folder: " + setFolder.getName());
+    }
+
+    private static Set<String> readRowIds(File setFolder) {
+        Set<String> rowIds = new HashSet<>();
+        File file = new File(setFolder, "rowidstocompareformismatch.txt");
+
+        if (!file.exists()) {
+            System.err.println("Error: Missing row IDs file - " + file.getAbsolutePath());
+            return rowIds;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                rowIds.add(line.trim());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return rowIds;
+    }
+
+    private static List<String> readColumns(File setFolder) {
+        List<String> columns = new ArrayList<>();
+        File file = new File(setFolder, "columnstocompareformismatch.txt");
+
+        if (!file.exists()) {
+            System.err.println("Error: Missing columns file - " + file.getAbsolutePath());
+            return columns;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                columns.add(line.trim());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return columns;
+    }
+
+    private static Map<String, Map<String, String>> readCSV(File csvFile, Set<String> rowIds, List<String> columns) {
+        Map<String, Map<String, String>> data = new HashMap<>();
+
+        if (!csvFile.exists()) {
+            System.err.println("Error: File not found - " + csvFile.getAbsolutePath());
+            return data;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
+            String headerLine = br.readLine();
+            if (headerLine == null) {
+                System.err.println("Error: Empty file - " + csvFile.getAbsolutePath());
+                return data;
+            }
+
+            String[] headers = headerLine.split(",", -1);
+            Map<String, Integer> headerIndex = new HashMap<>();
+            for (int i = 0; i < headers.length; i++) {
+                headerIndex.put(headers[i].trim().toLowerCase(), i);
+            }
+
+            Integer subjectIdIdx = headerIndex.get("subjectid");
+            if (subjectIdIdx == null) {
+                System.err.println("Error: SubjectID column not found in " + csvFile.getName());
+                return data;
+            }
+
+            Map<String, Integer> columnIndices = new HashMap<>();
+            for (String column : columns) {
+                String lowerColumn = column.trim().toLowerCase();
+                if (headerIndex.containsKey(lowerColumn)) {
+                    columnIndices.put(column, headerIndex.get(lowerColumn));
+                }
             }
 
             String line;
             while ((line = br.readLine()) != null) {
-                String[] values = line.split(",", 2); // Split only at the first comma
-                if (!values[0].contains("E")) { // Check if sj_subject_id contains 'E'
-                    bw.write(line);
-                    bw.newLine();
+                String[] row = line.split(",", -1);
+                String subjectId = row[subjectIdIdx].trim();
+
+                if (rowIds.contains(subjectId)) {
+                    Map<String, String> rowData = new HashMap<>();
+                    for (String column : columns) {
+                        Integer idx = columnIndices.get(column);
+                        String value = (idx != null && idx < row.length) ? row[idx].trim() : null;
+                        rowData.put(column, value);
+                    }
+                    data.put(subjectId, rowData);
                 }
             }
-
-            System.out.println("Filtered CSV file created: " + outputFile);
-
         } catch (IOException e) {
-            System.err.println("Error processing file: " + inputFile);
+            e.printStackTrace();
+        }
+
+        return data;
+    }
+
+    private static void writeDifferences(File setFolder, List<String[]> differences) {
+        File diffFile = new File(setFolder, "differences.csv");
+        try (PrintWriter writer = new PrintWriter(new FileWriter(diffFile))) {
+            writer.println("SubjectID,Column,Actual,Expected");
+            for (String[] diff : differences) {
+                writer.println(String.join(",", diff));
+            }
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    /**
-     * Step 2: Reads filtered CSV and removes '.0' from sj_subject_id
-     */
-    public static void cleanDecimalSuffix(String inputFile, String outputFile) {
-        try (BufferedReader br = new BufferedReader(new FileReader(inputFile));
-             BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile))) {
+    private static void writeSummaryReport(File setFolder, Map<String, int[]> columnStats, int totalRows) {
+        File reportFile = new File(setFolder, "summary_report.txt");
+        List<String> columns = columnStats.keySet().stream()
+                .sorted()
+                .collect(Collectors.toList());
 
-            String header = br.readLine(); // Read the header
-            if (header != null) {
-                bw.write(header); // Write header to output file
-                bw.newLine();
+        try (PrintWriter writer = new PrintWriter(new FileWriter(reportFile))) {
+            writer.println("Total number of rowIds considered: " + totalRows);
+            writer.println("Column Name and Match Percentage:");
+
+            for (String column : columns) {
+                int[] stats = columnStats.get(column);
+                double percentage = (stats[0] * 100.0) / stats[1];
+                writer.printf("%s: %d out of %d (%.2f%%)%n", column, stats[0], stats[1], percentage);
             }
-
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] values = line.split(",", 2); // Split only at the first comma
-                if (values.length > 1) {
-                    // Remove ".0" if it's at the end of sj_subject_id
-                    values[0] = values[0].endsWith(".0") ? values[0].replace(".0", "") : values[0];
-                    bw.write(String.join(",", values));
-                    bw.newLine();
-                }
-            }
-
-            System.out.println("Final cleaned CSV file created: " + outputFile);
-
         } catch (IOException e) {
-            System.err.println("Error processing file: " + inputFile);
             e.printStackTrace();
         }
     }
