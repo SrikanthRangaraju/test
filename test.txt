@@ -1,39 +1,205 @@
-private static void processSetFolder(File setFolder) {
-    System.out.println("Reading row IDs...");
-    Set<String> rowIds = readRowIds(setFolder);
-    System.out.println("Row IDs read: " + rowIds.size());
+import java.io.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.*;
+import java.util.stream.Collectors;
 
-    System.out.println("Reading columns...");
-    List<String> columns = readColumns(setFolder);
-    System.out.println("Columns read: " + columns.size());
+public class CSVFolderComparator {
 
-    if (rowIds.isEmpty() || columns.isEmpty()) {
-        System.err.println("No row IDs or columns to process in " + setFolder.getName());
-        return;
+    private static final double TOLERANCE = 0.5; // Set tolerance threshold
+
+    public static void main(String[] args) {
+        String mainFolderPath = "C://main/";
+        File mainFolder = new File(mainFolderPath);
+        File[] setFolders = mainFolder.listFiles(File::isDirectory);
+
+        if (setFolders != null) {
+            for (File setFolder : setFolders) {
+                processSetFolder(setFolder);
+            }
+        }
     }
 
-    Set<String> limitedRowIds = rowIds.stream().limit(10).collect(Collectors.toSet());
-    System.out.println("Processing only " + limitedRowIds.size() + " rows for testing.");
+    private static void processSetFolder(File setFolder) {
+        Set<String> rowIds = readRowIds(setFolder);
+        List<String> columns = readColumns(setFolder);
 
-    System.out.println("Reading actualoutputfile.csv...");
-    Map<String, Map<String, String>> actualData = readCSV(new File(setFolder, "actualoutputfile.csv"), limitedRowIds, columns);
-    System.out.println("Actual data read: " + actualData.size());
+        if (rowIds.isEmpty() || columns.isEmpty()) {
+            System.err.println("No row IDs or columns to process in " + setFolder.getName());
+            return;
+        }
 
-    System.out.println("Reading expectedoutputfile.csv...");
-    Map<String, Map<String, String>> expectedData = readCSV(new File(setFolder, "expectedoutputfile.csv"), limitedRowIds, columns);
-    System.out.println("Expected data read: " + expectedData.size());
+        // 🚀 Limit processing to 5 rows for faster debugging
+        Set<String> limitedRowIds = rowIds.stream().limit(5).collect(Collectors.toSet());
+        System.out.println("Processing only " + limitedRowIds.size() + " rows for testing.");
 
-    List<String[]> differences = new ArrayList<>();
-    Map<String, int[]> columnStats = new HashMap<>();
-    columns.forEach(column -> columnStats.put(column, new int[2]));
+        System.out.println("Reading actual CSV...");
+        Map<String, Map<String, String>> actualData = readCSV(new File(setFolder, "actualoutputfile.csv"), limitedRowIds, columns);
+        System.out.println("Actual CSV read complete.");
 
-    System.out.println("Comparing values...");
-    for (String rowId : limitedRowIds) {
-        Map<String, String> actualRow = actualData.get(rowId);
-        Map<String, String> expectedRow = expectedData.get(rowId);
+        System.out.println("Reading expected CSV...");
+        Map<String, Map<String, String>> expectedData = readCSV(new File(setFolder, "expectedoutputfile.csv"), limitedRowIds, columns);
+        System.out.println("Expected CSV read complete.");
 
-        for (String column : columns) {
-            int[] stats = columnStats.get(column);
-            stats[1]++; 
+        List<String[]> differences = new ArrayList<>();
+        Map<String, int[]> columnStats = new HashMap<>();
+        columns.forEach(column -> columnStats.put(column, new int[2]));
 
-            String actualValue = (actualRow != null)
+        for (String rowId : limitedRowIds) {
+            Map<String, String> actualRow = actualData.get(rowId);
+            Map<String, String> expectedRow = expectedData.get(rowId);
+
+            for (String column : columns) {
+                int[] stats = columnStats.get(column);
+                stats[1]++; // Total comparisons
+
+                String actualValue = (actualRow != null) ? actualRow.get(column) : "Row not present in actual";
+                String expectedValue = (expectedRow != null) ? expectedRow.get(column) : "Row not present in expected";
+
+                System.out.println("Comparing Row: " + rowId + ", Column: " + column);
+                System.out.println("Actual: " + actualValue + " | Expected: " + expectedValue);
+
+                if (actualValue == null || expectedValue == null || !areValuesEqual(actualValue, expectedValue)) {
+                    differences.add(new String[]{rowId, column, formatValue(actualValue), formatValue(expectedValue)});
+                    continue;
+                }
+                stats[0]++;
+            }
+        }
+
+        System.out.println("Total Differences Found: " + differences.size());
+
+        System.out.println("Writing differences to file...");
+        writeDifferences(setFolder, differences);
+        System.out.println("Differences file written successfully.");
+
+        System.out.println("Writing summary report...");
+        writeSummaryReport(setFolder, columnStats, limitedRowIds.size());
+        System.out.println("Summary report written successfully.");
+    }
+
+    private static Set<String> readRowIds(File setFolder) {
+        Set<String> rowIds = new HashSet<>();
+        File file = new File(setFolder, "rowidstocompareformismatch.txt");
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                rowIds.add(line.trim());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return rowIds;
+    }
+
+    private static List<String> readColumns(File setFolder) {
+        List<String> columns = new ArrayList<>();
+        File file = new File(setFolder, "columnstocompareformismatch.txt");
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                columns.add(line.trim());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return columns;
+    }
+
+    private static Map<String, Map<String, String>> readCSV(File csvFile, Set<String> rowIds, List<String> columns) {
+        Map<String, Map<String, String>> data = new HashMap<>();
+        if (!csvFile.exists()) return data;
+
+        try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
+            String headerLine = br.readLine();
+            if (headerLine == null) return data;
+
+            String[] headers = headerLine.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+            Map<String, Integer> headerIndex = new HashMap<>();
+            for (int i = 0; i < headers.length; i++) {
+                headerIndex.put(headers[i].trim().toLowerCase(), i);
+            }
+
+            Integer subjectIdIdx = headerIndex.get("subjectid");
+            if (subjectIdIdx == null) {
+                System.err.println("SubjectID column not found in " + csvFile.getName());
+                return data;
+            }
+
+            Map<String, Integer> columnIndices = new HashMap<>();
+            for (String column : columns) {
+                String lowerColumn = column.trim().toLowerCase();
+                if (headerIndex.containsKey(lowerColumn)) {
+                    columnIndices.put(column, headerIndex.get(lowerColumn));
+                }
+            }
+
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] row = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+                String subjectId = row[subjectIdIdx].trim();
+
+                if (rowIds.contains(subjectId)) {
+                    Map<String, String> rowData = new HashMap<>();
+                    for (String column : columns) {
+                        Integer idx = columnIndices.get(column);
+                        String value = (idx != null && idx < row.length) ? row[idx].trim() : null;
+                        rowData.put(column, value);
+                    }
+                    data.put(subjectId, rowData);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return data;
+    }
+
+    private static boolean areValuesEqual(String actual, String expected) {
+        try {
+            BigDecimal actualNum = new BigDecimal(actual).setScale(5, RoundingMode.HALF_UP);
+            BigDecimal expectedNum = new BigDecimal(expected).setScale(5, RoundingMode.HALF_UP);
+
+            return actualNum.subtract(expectedNum).abs().compareTo(BigDecimal.valueOf(TOLERANCE)) <= 0;
+        } catch (NumberFormatException e) {
+            return actual.trim().equalsIgnoreCase(expected.trim());
+        }
+    }
+
+    private static String formatValue(String value) {
+        try {
+            BigDecimal number = new BigDecimal(value).setScale(5, RoundingMode.HALF_UP);
+            return number.stripTrailingZeros().toPlainString();
+        } catch (NumberFormatException e) {
+            return value.trim();
+        }
+    }
+
+    private static void writeDifferences(File setFolder, List<String[]> differences) {
+        File diffFile = new File(setFolder, "differences.csv");
+        try (PrintWriter writer = new PrintWriter(new FileWriter(diffFile))) {
+            writer.println("SubjectID,Column,Actual,Expected");
+            for (String[] diff : differences) {
+                writer.println(String.join(",", diff));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void writeSummaryReport(File setFolder, Map<String, int[]> columnStats, int totalRows) {
+        File reportFile = new File(setFolder, "summary_report.txt");
+        try (PrintWriter writer = new PrintWriter(new FileWriter(reportFile))) {
+            writer.println("Total number of rowIds to consider for mismatch: " + totalRows);
+            writer.println("Column Name and Percentage of Match:");
+
+            for (Map.Entry<String, int[]> entry : columnStats.entrySet()) {
+                int[] stats = entry.getValue();
+                double percentage = (stats[0] * 100.0) / stats[1];
+                writer.printf("%s: %d out of %d (%.2f%%)%n", entry.getKey(), stats[0], stats[1], percentage);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
