@@ -1,26 +1,66 @@
 import java.io.*;
-import java.util.*;
+import java.nio.file.*;
+import java.util.regex.*;
 
-public class RemoveLastColumn {
+public class CSVDataCleaner {
     public static void main(String[] args) {
-        String inputFile = "input.csv";   // Change to your file name
-        String outputFile = "output.csv"; // Change to desired output file name
-        
-        try (BufferedReader br = new BufferedReader(new FileReader(inputFile));
-             BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile))) {
-            
+        String inputFolderPath = "C:\\"; // Change this to your folder path
+        String outputFolderPath = "C:\cleaned\\"; // Folder for cleaned files
+
+        File folder = new File(inputFolderPath);
+        if (!folder.exists() || !folder.isDirectory()) {
+            System.out.println("Invalid input folder path.");
+            return;
+        }
+
+        // Ensure output folder exists
+        new File(outputFolderPath).mkdirs();
+
+        File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".csv"));
+        if (files == null || files.length == 0) {
+            System.out.println("No CSV files found in the folder.");
+            return;
+        }
+
+        for (File file : files) {
+            processCSVFile(file, outputFolderPath);
+        }
+
+        System.out.println("All CSV files have been processed and saved.");
+    }
+
+    private static void processCSVFile(File inputFile, String outputFolderPath) {
+        String outputFilePath = outputFolderPath + inputFile.getName().replace(".csv", "_cleaned.csv");
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(inputFile));
+             BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath))) {
+
             String line;
-            while ((line = br.readLine()) != null) {
-                String[] columns = line.split(",");
-                if (columns.length > 1) { // Ensure there is more than one column
-                    String newLine = String.join(",", Arrays.copyOf(columns, columns.length - 1));
-                    bw.write(newLine);
-                }
-                bw.newLine();
+            while ((line = reader.readLine()) != null) {
+                String cleanedLine = cleanNumericFields(line);
+                writer.write(cleanedLine);
+                writer.newLine();
             }
-            System.out.println("Last column removed successfully. Output saved to " + outputFile);
+
+            System.out.println("Processed: " + inputFile.getName());
+
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private static String cleanNumericFields(String line) {
+        Pattern pattern = Pattern.compile("(-?\\d{1,3}(,\\d{3})*(\\.\\d+)?)"); 
+        Matcher matcher = pattern.matcher(line);
+        StringBuffer sb = new StringBuffer();
+
+        while (matcher.find()) {
+            String numericValue = matcher.group(1);
+            String cleanedValue = numericValue.replace(",", ""); // Remove commas
+            matcher.appendReplacement(sb, cleanedValue);
+        }
+        matcher.appendTail(sb);
+
+        return sb.toString();
     }
 }
