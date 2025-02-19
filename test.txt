@@ -1,98 +1,42 @@
-private static void processSetFolder(File setFolder) {
-    System.out.println("Reading row mismatch file...");
-    Set<String> rowIds = readRows(setFolder);
-    System.out.println("Total row IDs found: " + rowIds.size());
+import java.io.*;
+import java.util.regex.*;
 
-    System.out.println("Reading column mismatch file...");
-    List<String> columns = readColumns(setFolder);
-    System.out.println("Total columns found: " + columns.size());
+public class CSVDataCleaner {
+    public static void main(String[] args) {
+        String inputFilePath = "C:\\Users\\YourUser\\Desktop\\trade_master.csv"; // Change this path
+        String outputFilePath = "C:\\Users\\YourUser\\Desktop\\trade_master_cleaned.csv"; // Output file
 
-    if (rowIds.isEmpty() || columns.isEmpty()) {
-        System.out.println("Skipping folder " + setFolder.getName() + " (No row IDs or columns found)");
-        return;
-    }
-
-    System.out.println("Reading actual CSV...");
-    Map<String, Map<String, String>> actualData = readCSV(new File(setFolder, "actualoutputfile.csv"), rowIds, columns);
-    System.out.println("Actual CSV read successfully. Total rows: " + actualData.size());
-
-    System.out.println("Reading expected CSV...");
-    Map<String, Map<String, String>> expectedData = readCSV(new File(setFolder, "expectedoutputfile.csv"), rowIds, columns);
-    System.out.println("Expected CSV read successfully. Total rows: " + expectedData.size());
-
-    List<String[]> differences = new ArrayList<>();  // Store non-matching records
-    List<String[]> matchedRecords = new ArrayList<>(); // Store matched records
-    Map<String, int[]> columnStats = new HashMap<>();
-
-    columns.forEach(column -> columnStats.put(column, new int[2]));
-
-    for (String rowId : rowIds) {
-        Map<String, String> actualRow = actualData.getOrDefault(rowId, Collections.emptyMap());
-        Map<String, String> expectedRow = expectedData.getOrDefault(rowId, Collections.emptyMap());
-
-        for (String column : columns) {
-            int[] stats = columnStats.get(column);
-            stats[1]++; // Total comparisons
-
-            String actualValue = actualRow.get(column);
-            String expectedValue = expectedRow.get(column);
-
-            if (!areValuesEqual(actualValue, expectedValue)) {
-                // If values are different, store them in differences.csv
-                differences.add(new String[]{rowId, column, formatValue(actualValue), formatValue(expectedValue)});
-                stats[0]++;
-            } else {
-                // If values match exactly, store them in matched.csv
-                matchedRecords.add(new String[]{rowId, column, formatValue(actualValue), formatValue(expectedValue)});
+        try (BufferedReader reader = new BufferedReader(new FileReader(inputFilePath));
+             BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath))) {
+            
+            String line;
+            while ((line = reader.readLine()) != null) {
+                // Process line and clean numeric fields
+                String cleanedLine = cleanNumericFields(line);
+                writer.write(cleanedLine);
+                writer.newLine();
             }
+            
+            System.out.println("CSV file has been cleaned and saved as: " + outputFilePath);
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
-    System.out.println("Total Differences Found: " + differences.size());
-    System.out.println("Total Matched Records Found: " + matchedRecords.size());
+    private static String cleanNumericFields(String line) {
+        // Regular expression to match numbers with commas (e.g., "80,562.44")
+        Pattern pattern = Pattern.compile("\"(\\d{1,3}(,\\d{3})*(\\.\\d+)?)\"");
+        Matcher matcher = pattern.matcher(line);
+        StringBuffer sb = new StringBuffer();
 
-    // Write differences to differences.csv
-    System.out.println("Writing differences to file...");
-    writeDifferences(setFolder, differences);
-    System.out.println("Differences written successfully.");
-
-    // Write matched records to matched.csv
-    System.out.println("Writing matched records to file...");
-    writeMatchedRecords(setFolder, matchedRecords);
-    System.out.println("File matched.csv written successfully.");
-
-    // Write summary report
-    System.out.println("Writing summary report...");
-    writeSummaryReport(setFolder, columnStats, rowIds.size());
-    System.out.println("Summary report written successfully.");
-
-    System.out.println("Finished processing folder: " + setFolder.getName());
-}
-
---------------
-private static void writeMatchedRecords(File setFolder, List<String[]> matchedRecords) {
-    File matchedFile = new File(setFolder, "matched.csv");
-
-    try (PrintWriter writer = new PrintWriter(new FileWriter(matchedFile))) {
-        writer.println("SubjectID,Column,Actual,Expected");
-        for (String[] record : matchedRecords) {
-            writer.println(String.join(",", record));
+        while (matcher.find()) {
+            String numericValue = matcher.group(1);  // Extract matched number
+            String cleanedValue = numericValue.replace(",", ""); // Remove commas
+            matcher.appendReplacement(sb, "\"" + cleanedValue + "\""); // Replace in line
         }
-    } catch (IOException e) {
-        System.out.println("Error writing matched.csv: " + e.getMessage());
-    }
-}
+        matcher.appendTail(sb);
 
------------------------------
-private static void writeDifferences(File setFolder, List<String[]> differences) {
-    File diffFile = new File(setFolder, "differences.csv");
-
-    try (PrintWriter writer = new PrintWriter(new FileWriter(diffFile))) {
-        writer.println("SubjectID,Column,Actual,Expected");
-        for (String[] diff : differences) {
-            writer.println(String.join(",", diff));
-        }
-    } catch (IOException e) {
-        System.out.println("Error writing differences.csv: " + e.getMessage());
+        return sb.toString();
     }
 }
