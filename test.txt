@@ -1,60 +1,28 @@
-private void recordOutputResults(String subjectId, CalcEngineResponse calcEngineResponse,
-                                 FileWriter serviceOutputValuesFileWriter, long serviceInvocationLatencyInMillis,
-                                 boolean writeHeaderLine) throws Exception {
-    List<FeatureResponse> featureResponses = new ArrayList<>();
+import java.nio.file.*
 
-    // Ensure there is at least one response
-    if (!calcEngineResponse.getModelResponsesList().isEmpty()) {
-        // Always get the first response
-        featureResponses.addAll(calcEngineResponse.getModelResponses(0).getFeatureResponsesList());
+// Set the folder path where .txt files are stored
+def folderPath = "C:\\Temp\\TextFiles"  // Update with your actual folder path
 
-        // If there is a second response, add it
-        if (calcEngineResponse.getModelResponsesList().size() > 1) {
-            featureResponses.addAll(calcEngineResponse.getModelResponses(1).getFeatureResponsesList());
-        }
+// Get the list of .txt files
+def fileList = new File(folderPath).listFiles().findAll { it.name.endsWith(".txt") }
+
+if (fileList.isEmpty()) {
+    log.error("No .txt files found in the folder: " + folderPath)
+} else {
+    // Select a file sequentially or randomly
+    def fileIndex = vars.get("fileIndex") ? vars.get("fileIndex").toInteger() + 1 : 0
+    if (fileIndex >= fileList.size()) {
+        fileIndex = 0  // Reset when all files are used
     }
+    vars.put("fileIndex", fileIndex.toString())
 
-    // Handling featureResponses based on size
-    int featureSize = featureResponses.size();
+    // Read file content
+    def txtFile = fileList[fileIndex]
+    def fileContent = new String(Files.readAllBytes(txtFile.toPath()), "UTF-8").trim()
 
-    StringBuilder dataLineStringBuilder = new StringBuilder();
-    dataLineStringBuilder.append(subjectId).append(",");
-    dataLineStringBuilder.append(serviceInvocationLatencyInMillis).append(",");
+    // Store content in JMeter variable
+    vars.put("TXT_FILE_CONTENT", fileContent)
 
-    if (writeHeaderLine) {
-        StringBuilder headerLineStringBuilder = new StringBuilder();
-        headerLineStringBuilder.append("SubjectId,ServiceLatencyInMilliseconds,");
-
-        // If featureResponse is 1, handle separately
-        if (featureSize == 1) {
-            headerLineStringBuilder.append(featureResponses.get(0).getFeatureName()).append(",");
-        } 
-        // If featureResponse is 2, handle separately
-        else if (featureSize == 2) {
-            headerLineStringBuilder.append(featureResponses.get(0).getFeatureName()).append(",");
-            headerLineStringBuilder.append(featureResponses.get(1).getFeatureName()).append(",");
-        } 
-        // Handle general case (more than 2)
-        else {
-            for (FeatureResponse feature : featureResponses) {
-                headerLineStringBuilder.append(feature.getFeatureName()).append(",");
-            }
-        }
-
-        serviceOutputValuesFileWriter.append(headerLineStringBuilder.append(System.lineSeparator()));
-    }
-
-    // Writing feature values to file
-    if (featureSize == 1) {
-        dataLineStringBuilder.append(featureResponses.get(0).getFeatureValue()).append(",");
-    } else if (featureSize == 2) {
-        dataLineStringBuilder.append(featureResponses.get(0).getFeatureValue()).append(",");
-        dataLineStringBuilder.append(featureResponses.get(1).getFeatureValue()).append(",");
-    } else {
-        for (FeatureResponse feature : featureResponses) {
-            dataLineStringBuilder.append(feature.getFeatureValue()).append(",");
-        }
-    }
-
-    serviceOutputValuesFileWriter.append(dataLineStringBuilder.append(System.lineSeparator()));
+    log.info("Loaded file: " + txtFile.name)
+    log.info("File Content: " + fileContent)
 }
