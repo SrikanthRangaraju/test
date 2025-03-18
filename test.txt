@@ -2,22 +2,21 @@ private void recordOutputResults(String subjectId, CalcEngineResponse calcEngine
                                  FileWriter serviceOutputValuesFileWriter, long serviceInvocationLatencyInMillis,
                                  boolean writeHeaderLine) throws Exception {
     List<FeatureResponse> featureResponses = new ArrayList<>();
-    
-    // Check if there is at least one response
-    if (!calcEngineResponse.getModelResponsesList().isEmpty()) {
-        // Always capture the first response in a single object
-        FeatureResponse subject = calcEngineResponse.getModelResponses(0).getFeatureResponsesList();
-        featureResponses.addAll(subject); // Add to list
 
-        // If more than one response exists, add all to a list
+    // Ensure there is at least one response
+    if (!calcEngineResponse.getModelResponsesList().isEmpty()) {
+        // Always get the first response
+        featureResponses.addAll(calcEngineResponse.getModelResponses(0).getFeatureResponsesList());
+
+        // If there is a second response, add it
         if (calcEngineResponse.getModelResponsesList().size() > 1) {
-            for (int i = 1; i < calcEngineResponse.getModelResponsesList().size(); i++) {
-                featureResponses.addAll(calcEngineResponse.getModelResponses(i).getFeatureResponsesList());
-            }
+            featureResponses.addAll(calcEngineResponse.getModelResponses(1).getFeatureResponsesList());
         }
     }
 
-    // StringBuilder for writing output
+    // Handling featureResponses based on size
+    int featureSize = featureResponses.size();
+
     StringBuilder dataLineStringBuilder = new StringBuilder();
     dataLineStringBuilder.append(subjectId).append(",");
     dataLineStringBuilder.append(serviceInvocationLatencyInMillis).append(",");
@@ -25,14 +24,36 @@ private void recordOutputResults(String subjectId, CalcEngineResponse calcEngine
     if (writeHeaderLine) {
         StringBuilder headerLineStringBuilder = new StringBuilder();
         headerLineStringBuilder.append("SubjectId,ServiceLatencyInMilliseconds,");
-        for (FeatureResponse feature : featureResponses) {
-            headerLineStringBuilder.append(feature.getFeatureName()).append(",");
+
+        // If featureResponse is 1, handle separately
+        if (featureSize == 1) {
+            headerLineStringBuilder.append(featureResponses.get(0).getFeatureName()).append(",");
+        } 
+        // If featureResponse is 2, handle separately
+        else if (featureSize == 2) {
+            headerLineStringBuilder.append(featureResponses.get(0).getFeatureName()).append(",");
+            headerLineStringBuilder.append(featureResponses.get(1).getFeatureName()).append(",");
+        } 
+        // Handle general case (more than 2)
+        else {
+            for (FeatureResponse feature : featureResponses) {
+                headerLineStringBuilder.append(feature.getFeatureName()).append(",");
+            }
         }
+
         serviceOutputValuesFileWriter.append(headerLineStringBuilder.append(System.lineSeparator()));
     }
 
-    for (FeatureResponse feature : featureResponses) {
-        dataLineStringBuilder.append(feature.getFeatureValue()).append(",");
+    // Writing feature values to file
+    if (featureSize == 1) {
+        dataLineStringBuilder.append(featureResponses.get(0).getFeatureValue()).append(",");
+    } else if (featureSize == 2) {
+        dataLineStringBuilder.append(featureResponses.get(0).getFeatureValue()).append(",");
+        dataLineStringBuilder.append(featureResponses.get(1).getFeatureValue()).append(",");
+    } else {
+        for (FeatureResponse feature : featureResponses) {
+            dataLineStringBuilder.append(feature.getFeatureValue()).append(",");
+        }
     }
 
     serviceOutputValuesFileWriter.append(dataLineStringBuilder.append(System.lineSeparator()));
