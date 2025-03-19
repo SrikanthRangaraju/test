@@ -1,28 +1,21 @@
-import java.nio.file.*
 
-// Set the folder path where .txt files are stored
-def folderPath = "C:\\Temp\\TextFiles"  // Update with your actual folder path
+As part of our  performance testing user story, I have been working with the JMeter performance tool to analyze how it handles our regular requests.
 
-// Get the list of .txt files
-def fileList = new File(folderPath).listFiles().findAll { it.name.endsWith(".txt") }
+As part of this, I have:
 
-if (fileList.isEmpty()) {
-    log.error("No .txt files found in the folder: " + folderPath)
-} else {
-    // Select a file sequentially or randomly
-    def fileIndex = vars.get("fileIndex") ? vars.get("fileIndex").toInteger() + 1 : 0
-    if (fileIndex >= fileList.size()) {
-        fileIndex = 0  // Reset when all files are used
-    }
-    vars.put("fileIndex", fileIndex.toString())
+Downloaded and set up JMeter.
+Added the necessary plugins for gRPC services.
+Provided all the required .proto files.
+Created a Groovy script to read different/random subject byte arrays from a folder.
+Added assertions to validate test cases (pass/fail).
+Passed the request to our Calculate service method and initiated the test.
+Successfully captured performance metrics.
+Attached is a sample output from three different inputs I used. These contain large data files (~3MB each)—which is an unusual case, but useful for testing performance limits.
 
-    // Read file content
-    def txtFile = fileList[fileIndex]
-    def fileContent = new String(Files.readAllBytes(txtFile.toPath()), "UTF-8").trim()
+ – Please review and let me know if this approach works for you.
+If you believe kkkkkk data processing is taking too long or that crafting Subject data is a bottleneck, we could try using mmmm data instead. I can provide 200K lllll data for initial testing. This will allow us to get hands-on experience with JMeter, and later, we can extend these tests to the llllll region as well.
 
-    // Store content in JMeter variable
-    vars.put("TXT_FILE_CONTENT", fileContent)
+I am happy to help set this up on your systems so the team can run additional test scenarios. Once you are comfortable with the setup, you can expand it further.
 
-    log.info("Loaded file: " + txtFile.name)
-    log.info("File Content: " + fileContent)
-}
+
+I am available for a call anytime after 9:00 AM. Let me know if any of your team members would like to discuss further.
