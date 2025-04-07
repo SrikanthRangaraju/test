@@ -48,7 +48,7 @@ public class ExtractSubjectData {
 
                     System.out.println("Extracted subjectData written to: " + outputPath.getFileName());
                 } else {
-                    System.out.println("ChileCreditData or ad missing in file: " + file.getName());
+                    System.out.println("cd or ad missing in file: " + file.getName());
                 }
             } else {
                 System.out.println("No subjectData found in file: " + file.getName());
