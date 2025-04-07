@@ -1,6 +1,58 @@
-Internally, how we handle the mismatch is our responsibility, and we’ll take care of it — no worries. Here's our plan:
+import java.io.*;
+import java.nio.file.*;
+import java.util.regex.*;
 
-a) We'll use the 6 RUT IDs shared by German to extract the GET data response, calculate the adviser values and score, and compare them with the expected results.
-b) We’ll use our POC/Batch JUnit test case to read the adviser values from the CSV file, generate the score values, and compare them against the expected score.
+public class ExtractSubjectData {
 
-Once we’re good with both (a) and (b), we should be all set, Dan."
+    public static void main(String[] args) throws IOException {
+        String inputDir = "C:\\path\\to\\input\\folder";     // e.g., "C:\\Users\\srranga\\Downloads\\RUT_DATA_7_04_25"
+        String outputDir = "C:\\path\\to\\output\\folder";   // e.g., "C:\\Users\\srranga\\Downloads\\ExtractedSubjectData"
+
+        // Create output directory if it doesn't exist
+        Files.createDirectories(Paths.get(outputDir));
+
+        File folder = new File(inputDir);
+        File[] files = folder.listFiles((dir, name) -> name.endsWith(".txt"));
+
+        if (files == null || files.length == 0) {
+            System.out.println("No .txt files found in input folder.");
+            return;
+        }
+
+        // Regex pattern to match both ChileCreditData and ChileRawData
+        Pattern pattern = Pattern.compile("\"subjectData\"\\s*:\\s*\\{(.*?)\\}", Pattern.DOTALL);
+
+        for (File file : files) {
+            String content = Files.readString(file.toPath());
+
+            Matcher matcher = pattern.matcher(content);
+            if (matcher.find()) {
+                String subjectDataBlock = matcher.group(1);
+
+                // Optional: clean any trailing commas or extra keys
+                Pattern innerPattern = Pattern.compile("\"ChileCreditData\"\\s*:\\s*\"(.*?)\".*?\"ChileRawData\"\\s*:\\s*\"(.*?)\"", Pattern.DOTALL);
+                Matcher innerMatcher = innerPattern.matcher(subjectDataBlock);
+
+                if (innerMatcher.find()) {
+                    String chileCredit = innerMatcher.group(1);
+                    String chileRaw = innerMatcher.group(2);
+
+                    String output = "{\n" +
+                            "  \"ChileCreditData\": \"" + chileCredit + "\",\n" +
+                            "  \"ChileRawData\": \"" + chileRaw + "\"\n" +
+                            "}";
+
+                    // Write to new file in output folder
+                    Path outputPath = Paths.get(outputDir, file.getName());
+                    Files.writeString(outputPath, output);
+
+                    System.out.println("Extracted subjectData written to: " + outputPath.getFileName());
+                } else {
+                    System.out.println("ChileCreditData or ChileRawData missing in file: " + file.getName());
+                }
+            } else {
+                System.out.println("No subjectData found in file: " + file.getName());
+            }
+        }
+    }
+}
