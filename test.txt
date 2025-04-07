@@ -19,7 +19,7 @@ public class ExtractSubjectData {
             return;
         }
 
-        // Regex pattern to match both ChileCreditData and ChileRawData
+        // Regex
         Pattern pattern = Pattern.compile("\"aD\"\\s*:\\s*\\{(.*?)\\}", Pattern.DOTALL);
 
         for (File file : files) {
