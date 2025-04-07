@@ -34,8 +34,8 @@ public class ExtractSubjectData {
                 Matcher innerMatcher = innerPattern.matcher(subjectDataBlock);
 
                 if (innerMatcher.find()) {
-                    String chileCredit = innerMatcher.group(1);
-                    String chileRaw = innerMatcher.group(2);
+                    String cd = innerMatcher.group(1);
+                    String rd = innerMatcher.group(2);
 
                     String output = "{\n" +
                             "  \"ad\": \"" + ad + "\",\n" +
