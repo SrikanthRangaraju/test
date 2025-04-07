@@ -1,58 +1,45 @@
-import java.io.*;
-import java.nio.file.*;
-import java.util.regex.*;
+#!/bin/bash
 
-public class ExtractSubjectData {
+BYTEARRAY_DIR="./byteArray"
+OUTPUT_CSV="./feature_output.csv"
+GRPC_URL="888.9999"
+SERVICE="o.oc.service.some"
+AUTH_TOKEN="mysomtoken"
 
-    public static void main(String[] args) throws IOException {
-        String inputDir = "C:\\path\\to\\input\\folder";     // e.g., "C:\\Users\\srranga\\Downloads\\RUT_DATA_7_04_25"
-        String outputDir = "C:\\path\\to\\output\\folder";   // e.g., "C:\\Users\\srranga\\Downloads\\ExtractedSubjectData"
+echo "fn,fn,cccc" > "$OUTPUT_CSV"
 
-        // Create output directory if it doesn't exist
-        Files.createDirectories(Paths.get(outputDir));
+for file in "$BYTEARRAY_DIR"/123_*.txt; do
+  echo "Processing $file..."
 
-        File folder = new File(inputDir);
-        File[] files = folder.listFiles((dir, name) -> name.endsWith(".txt"));
+  line=$(cat "$file")
+  aA=$(echo "$line" | sed -n 's/.*"aA":"\([^"]*\)".*/\1/p')
+  bB=$(echo "$line" | sed -n 's/.*"bB":"\([^"]*\)".*/\1/p')
 
-        if (files == null || files.length == 0) {
-            System.out.println("No .txt files found in input folder.");
-            return;
-        }
-
-        // Regex
-        Pattern pattern = Pattern.compile("\"aD\"\\s*:\\s*\\{(.*?)\\}", Pattern.DOTALL);
-
-        for (File file : files) {
-            String content = Files.readString(file.toPath());
-
-            Matcher matcher = pattern.matcher(content);
-            if (matcher.find()) {
-                String subjectDataBlock = matcher.group(1);
-
-                // Optional: clean any trailing commas or extra keys
-                Pattern innerPattern = Pattern.compile("\"ad\"\\s*:\\s*\"(.*?)\".*?\"df\"\\s*:\\s*\"(.*?)\"", Pattern.DOTALL);
-                Matcher innerMatcher = innerPattern.matcher(subjectDataBlock);
-
-                if (innerMatcher.find()) {
-                    String cd = innerMatcher.group(1);
-                    String rd = innerMatcher.group(2);
-
-                    String output = "{\n" +
-                            "  \"ad\": \"" + ad + "\",\n" +
-                            "  \"df\": \"" + sf + "\"\n" +
-                            "}";
-
-                    // Write to new file in output folder
-                    Path outputPath = Paths.get(outputDir, file.getName());
-                    Files.writeString(outputPath, output);
-
-                    System.out.println("Extracted subjectData written to: " + outputPath.getFileName());
-                } else {
-                    System.out.println("cd or ad missing in file: " + file.getName());
-                }
-            } else {
-                System.out.println("No subjectData found in file: " + file.getName());
-            }
-        }
+  read -r -d '' body <<EOF
+{
+  "requestHeader": {
+   
+  },
+  "sD": {
+    "abc": "$accc",
+    "def": "$dsdsdsdsdsd"
+  },
+  "somethingsomarray": [
+    {
+      
+    },
+    {
+      
     }
+  ]
 }
+EOF
+
+  response=$(grpcurl -plaintext -H "authorization: Bearer $AUTH_TOKEN" -d "$body" "$GRPC_URL" "$SERVICE")
+
+  echo "$response" | jq -r --arg fname "$(basename "$file")" '
+    .somout[]?.resp1[]? | [$name, .hello, .world] | @csv
+  ' >> "$OUTPUT_CSV"
+done
+
+echo "✅ Done. CSV written to $OUTPUT_CSV"
