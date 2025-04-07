@@ -1,21 +1,6 @@
+Internally, how we handle the mismatch is our responsibility, and we’ll take care of it — no worries. Here's our plan:
 
-As part of our  performance testing user story, I have been working with the JMeter performance tool to analyze how it handles our regular requests.
+a) We'll use the 6 RUT IDs shared by German to extract the GET data response, calculate the adviser values and score, and compare them with the expected results.
+b) We’ll use our POC/Batch JUnit test case to read the adviser values from the CSV file, generate the score values, and compare them against the expected score.
 
-As part of this, I have:
-
-Downloaded and set up JMeter.
-Added the necessary plugins for gRPC services.
-Provided all the required .proto files.
-Created a Groovy script to read different/random subject byte arrays from a folder.
-Added assertions to validate test cases (pass/fail).
-Passed the request to our Calculate service method and initiated the test.
-Successfully captured performance metrics.
-Attached is a sample output from three different inputs I used. These contain large data files (~3MB each)—which is an unusual case, but useful for testing performance limits.
-
- – Please review and let me know if this approach works for you.
-If you believe kkkkkk data processing is taking too long or that crafting Subject data is a bottleneck, we could try using mmmm data instead. I can provide 200K lllll data for initial testing. This will allow us to get hands-on experience with JMeter, and later, we can extend these tests to the llllll region as well.
-
-I am happy to help set this up on your systems so the team can run additional test scenarios. Once you are comfortable with the setup, you can expand it further.
-
-
-I am available for a call anytime after 9:00 AM. Let me know if any of your team members would like to discuss further.
+Once we’re good with both (a) and (b), we should be all set, Dan."
