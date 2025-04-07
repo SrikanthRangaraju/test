@@ -20,7 +20,7 @@ public class ExtractSubjectData {
         }
 
         // Regex pattern to match both ChileCreditData and ChileRawData
-        Pattern pattern = Pattern.compile("\"subjectData\"\\s*:\\s*\\{(.*?)\\}", Pattern.DOTALL);
+        Pattern pattern = Pattern.compile("\"aD\"\\s*:\\s*\\{(.*?)\\}", Pattern.DOTALL);
 
         for (File file : files) {
             String content = Files.readString(file.toPath());
@@ -30,7 +30,7 @@ public class ExtractSubjectData {
                 String subjectDataBlock = matcher.group(1);
 
                 // Optional: clean any trailing commas or extra keys
-                Pattern innerPattern = Pattern.compile("\"ChileCreditData\"\\s*:\\s*\"(.*?)\".*?\"ChileRawData\"\\s*:\\s*\"(.*?)\"", Pattern.DOTALL);
+                Pattern innerPattern = Pattern.compile("\"ad\"\\s*:\\s*\"(.*?)\".*?\"df\"\\s*:\\s*\"(.*?)\"", Pattern.DOTALL);
                 Matcher innerMatcher = innerPattern.matcher(subjectDataBlock);
 
                 if (innerMatcher.find()) {
@@ -38,8 +38,8 @@ public class ExtractSubjectData {
                     String chileRaw = innerMatcher.group(2);
 
                     String output = "{\n" +
-                            "  \"ChileCreditData\": \"" + chileCredit + "\",\n" +
-                            "  \"ChileRawData\": \"" + chileRaw + "\"\n" +
+                            "  \"ad\": \"" + ad + "\",\n" +
+                            "  \"df\": \"" + sf + "\"\n" +
                             "}";
 
                     // Write to new file in output folder
@@ -48,7 +48,7 @@ public class ExtractSubjectData {
 
                     System.out.println("Extracted subjectData written to: " + outputPath.getFileName());
                 } else {
-                    System.out.println("ChileCreditData or ChileRawData missing in file: " + file.getName());
+                    System.out.println("ChileCreditData or ad missing in file: " + file.getName());
                 }
             } else {
                 System.out.println("No subjectData found in file: " + file.getName());
