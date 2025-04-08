@@ -1,34 +1,7 @@
-import java.io.*;
-import java.util.*;
+We have validated around 100 RUT IDs, including the latest 6 RUT IDs shared by German.
+We have extracted the GET data for these RUT IDs, generated both the Adviser values and the Scores.
 
-public class FilterCSV {
-    public static void main(String[] args) throws IOException {
-        // Specify the paths to your files
-        String masterFilePath = "C:/Users/YourUsername/Documents/master.csv";
-        String childFilePath = "C:/Users/YourUsername/Documents/child.csv";
-        String outputFilePath = "C:/Users/YourUsername/Documents/filtered_master.csv";
+Out of the 100 IDs, the Scores are matching for 90, which belong to Segment 2 and Segment 3.
+The remaining 10 IDs seem to have discrepancies in the GET data response. This may be due to the recent deployment of a new version of NGDL, which could have caused changes in the GET data structure. We are currently checking this with the BDS team.
 
-        // Load child.csv IDs into a set
-        Set<String> childIDs = new HashSet<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(childFilePath))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                childIDs.add(line.trim());
-            }
-        }
-
-        // Filter master.csv based on child.csv IDs
-        try (BufferedReader br = new BufferedReader(new FileReader(masterFilePath));
-             PrintWriter pw = new PrintWriter(new FileWriter(outputFilePath))) {
-            String header = br.readLine();
-            pw.println(header); // Write header to the new file
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] columns = line.split(",");
-                if (childIDs.contains(columns[0].trim())) {
-                    pw.println(line);
-                }
-            }
-        }
-    }
-}
+Additionally, we have verified a few of these IDs in the Cloud DEV environment, and the scores are matching there as expected.
