@@ -3,9 +3,14 @@ import java.util.*;
 
 public class FilterCSV {
     public static void main(String[] args) throws IOException {
+        // Specify the paths to your files
+        String masterFilePath = "C:/Users/YourUsername/Documents/master.csv";
+        String childFilePath = "C:/Users/YourUsername/Documents/child.csv";
+        String outputFilePath = "C:/Users/YourUsername/Documents/filtered_master.csv";
+
         // Load child.csv IDs into a set
         Set<String> childIDs = new HashSet<>();
-        try (BufferedReader br = new BufferedReader(new FileReader("child.csv"))) {
+        try (BufferedReader br = new BufferedReader(new FileReader(childFilePath))) {
             String line;
             while ((line = br.readLine()) != null) {
                 childIDs.add(line.trim());
@@ -13,8 +18,8 @@ public class FilterCSV {
         }
 
         // Filter master.csv based on child.csv IDs
-        try (BufferedReader br = new BufferedReader(new FileReader("master.csv"));
-             PrintWriter pw = new PrintWriter(new FileWriter("filtered_master.csv"))) {
+        try (BufferedReader br = new BufferedReader(new FileReader(masterFilePath));
+             PrintWriter pw = new PrintWriter(new FileWriter(outputFilePath))) {
             String header = br.readLine();
             pw.println(header); // Write header to the new file
             String line;
@@ -27,66 +32,3 @@ public class FilterCSV {
         }
     }
 }
-
-
-
-#!/bin/bash
-
-output_csv="./feature_output.csv"
-echo "fileName,featureName,featureValue" > "$output_csv"
-
-for file in ./byteArray/*.txt; do
-  echo "Processing $file..."
-
-  # Initialize variables
-  cC=""
-  cR=""
-
-  while read -r line; do
-    key=$(echo "$line" | cut -d':' -f1 | tr -d '"')
-    value=$(echo "$line" | cut -d':' -f2- | sed 's/^ *//; s/ *$//' | tr -d '",')
-    
-    if [[ "$key" == "CCD" ]]; then
-      cC="$value"
-    elif [[ "$key" == "CRD" ]]; then
-      cR="$value"
-    fi
-  done < "$file"
-
-  # Skip if values are empty
-  if [[ -z "$cR" || -z "$cR" ]]; then
-    echo "parse error: Missing data in $file"
-    continue
-  fi
-
-  read -r -d '' body <<EOF
-{
-  "requestHeader": {
-    
-  },
-  "subjectData": {
-    "CCD": "$cC",
-    "CRD": "$cR"
-  },
-  "models": [
-    {
-      
-    },
-    {
-      
-    }
-  ]
-}
-EOF
-
-  # Run grpcurl command
-  response=$(grpcurl -v -insecure -H "authorization: Bearer $AUTH_TOKEN" -d "$body" "$GRPC_URL" "$SERVICE")
-
-  # Parse the response using jq
-  echo "$response" | jq -r '.modelResponses[] | [.featureName, .featureValue] | @csv' | while IFS=',' read -r featureName featureValue; do
-    echo "$(basename "$file"),$featureName,$featureValue" >> "$output_csv"
-  done
-
-done
-
-echo "Done. CSV written to $output_csv"
