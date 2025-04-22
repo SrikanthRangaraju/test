@@ -1,7 +1,41 @@
-We have validated around 100 RUT IDs, including the latest 6 RUT IDs shared by German.
-We have extracted the GET data for these RUT IDs, generated both the Adviser values and the Scores.
+Hi Dan,
 
-Out of the 100 IDs, the Scores are matching for 90, which belong to Segment 2 and Segment 3.
-The remaining 10 IDs seem to have discrepancies in the GET data response. This may be due to the recent deployment of a new version of NGDL, which could have caused changes in the GET data structure. We are currently checking this with the BDS team.
+Sorry, I didn't get a chance to chat or talk to you. Though it’s a bit lengthy, I would like you to please review the details below and share your comments.
 
-Additionally, we have verified a few of these IDs in the Cloud DEV environment, and the scores are matching there as expected.
+I have been discussing with the QA team and Utkarsha, and here is how we are planning for PI 2 as part of the Test Automation initiative:
+
+Priority 1:
+
+Develop a regression suite with both positive and negative test cases for the Calculate service, covering all possible scenarios.
+
+As part of the mismatch process, we plan to use 30K UAT records in on-prem for both live and retro scenarios — for example, validating a template with 1340 attributes to ensure there are no mismatches when changes are made.
+
+We also plan to integrate these tests into the CI/CD pipeline.
+
+Priority 2:
+
+Develop an automation batch script in UAT Online API to validate that the results produced by the API (for 30K records) match the batch output, on-prem adviser output, shape output, or expected output.
+
+Priority 3:
+
+We have already started working with Eric and the team on setting up the E2E environment in Cloud QA (with PROD/UAT data loaded).
+
+To achieve this, we may need to develop automation scripts that can run on cloud instances.
+
+I will keep you posted after our meeting this Wednesday.
+
+Priority 4:
+
+Today (04/21) evening, I will work with Nijanth on the Mexico region.
+
+I will coordinate with him to understand his expectations around automation and will update you accordingly.
+
+Please review these priorities and let me know if you have any concerns or suggestions.
+
+Side Note:
+
+I may shorten my planned leave from May 5th–May 23rd to May 5th–May 16th (approximately 10–11 days of vacation).
+
+I had sent you an email on April 9th regarding my leave request. Could you please reply to that email and confirm? I need to inform BBI accordingly.
+
+Additionally, I may take tomorrow off (either the full day or about 4 hours) due to some personal work. Just giving you a heads-up in advance
