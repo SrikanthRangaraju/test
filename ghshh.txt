@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# File containing Subject IDs (one per line)
+SUBJECT_FILE="subjectids.txt"
+
+# Path to your gRPC curl binary
+GRPCURL_PATH="/opt/bin/grpcurl/grpcurl"
+
+# Host and service details
+HOST="10.50.19.94:22002"
+SERVICE="com.tuc.grpc.getdata.proto.GetDataService/getData"
+
+# Auth token (replace with your actual token)
+AUTH_TOKEN="Bearer eyJHR9fam..."
+
+# Path to output file
+TEMPLATE_FILE="/opt/brz/getData/73564922_13m.txt"
+
+# Loop through each subject ID
+while read -r SUBJECT_ID; do
+  echo "Running for Subject ID: $SUBJECT_ID"
+
+  $GRPCURL_PATH -H "Authorization: $AUTH_TOKEN" -d @ -insecure $HOST $SERVICE <<EOM
+{
+  "customerInfo": [
+    {
+      "subjectId": "$SUBJECT_ID",
+      "cpfOrCnpj": ""
+    }
+  ],
+  "countryCode": "BR",
+  "numberOfMonths": 36,
+  "segments": [
+    "PII",
+    "ALT_CEP-POSTALCODE",
+    "ALT_SETOR_CENSITARIO_IBGE"
+  ],
+  "monitoringDate": "20240531",
+  "creditCardLastDigits": "",
+  "requestHeader": {
+    "transaction_id": "BDS-STG-VALIDATION"
+  }
+}
+EOM
+
+done < "$SUBJECT_FILE"
