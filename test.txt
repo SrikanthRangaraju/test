@@ -1,16 +1,24 @@
-import java.io.*;
-import java.net.*;
-import java.util.Base64;
-import org.json.JSONObject;
-
 public class TokenGenerator {
+    private static String token = "";
+    private static long tokenTimestamp = 0;
+    private static final long TOKEN_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 
-    public static final String ACCESS_TOKEN;
+    public static String getAccessToken() {
+        long currentTime = System.currentTimeMillis();
+        if (token.isEmpty() || (currentTime - tokenTimestamp) > TOKEN_EXPIRY_MS) {
+            token = fetchToken(); // regenerate token
+            tokenTimestamp = currentTime;
+        }
+        return token;
+    }
 
-    static {
+    private static String fetchToken() {
         String token = "";
         try {
-            
+            String urlStr = "https://cfed.csrv-dev.aws.transau.net:8443/as/token.oauth2";
+            String clientId = "YOUR_CLIENT_ID";
+            String clientSecret = "YOUR_CLIENT_SECRET";
+            String scope = "YOUR_SCOPE";
 
             URL url = new URL(urlStr);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -18,23 +26,21 @@ public class TokenGenerator {
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 
-            // Set Basic Auth header
             String auth = clientId + ":" + clientSecret;
             String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
             conn.setRequestProperty("Authorization", "Basic " + encodedAuth);
 
-            // Set body
             String body = "grant_type=client_credentials&scope=" + URLEncoder.encode(scope, "UTF-8");
-            OutputStream os = conn.getOutputStream();
-            os.write(body.getBytes());
-            os.flush();
-            os.close();
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(body.getBytes());
+                os.flush();
+            }
 
-            // Read response
-            InputStream is = conn.getResponseCode() == 200 ? conn.getInputStream() : conn.getErrorStream();
+            InputStream is = (conn.getResponseCode() == 200) ? conn.getInputStream() : conn.getErrorStream();
             BufferedReader in = new BufferedReader(new InputStreamReader(is));
             StringBuilder response = new StringBuilder();
             String inputLine;
+
             while ((inputLine = in.readLine()) != null) {
                 response.append(inputLine);
             }
@@ -44,15 +50,12 @@ public class TokenGenerator {
             if (json.has("access_token")) {
                 token = json.getString("access_token");
             } else {
-                System.err.println("Token not found. Response: " + response);
+                System.err.println("Token not found: " + response);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        ACCESS_TOKEN = token;
-    }
-
-    public static void main(String[] args) {
-        System.out.println("Generated Access Token:\n" + ACCESS_TOKEN);
+        return token;
     }
 }
+//new AuthToken(TokenGenerator.getAccessToken())
