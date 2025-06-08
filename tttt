@@ -1,0 +1,56 @@
+package starter.common.utilities;
+
+import java.io.*;
+import java.net.*;
+import java.util.Base64;
+import org.json.JSONObject;
+
+public class TokenGenerator {
+
+    public static String getAccessToken() {
+        String token = "";
+        try {
+            String urlStr = "https://cfed.csrv-dev.aws.transu.net:8443/as/token.oauth2";
+            String clientId = "YOUR_CLIENT_ID";
+            String clientSecret = "YOUR_CLIENT_SECRET";
+            String scope = "YOUR_SCOPE";
+
+            URL url = new URL(urlStr);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+            String auth = clientId + ":" + clientSecret;
+            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
+            conn.setRequestProperty("Authorization", "Basic " + encodedAuth);
+
+            String body = "grant_type=client_credentials&scope=" + URLEncoder.encode(scope, "UTF-8");
+            OutputStream os = conn.getOutputStream();
+            os.write(body.getBytes());
+            os.flush();
+            os.close();
+
+            InputStream is = conn.getResponseCode() == 200 ? conn.getInputStream() : conn.getErrorStream();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+            StringBuilder response = new StringBuilder();
+            String inputLine;
+            while ((inputLine = reader.readLine()) != null) {
+                response.append(inputLine);
+            }
+            reader.close();
+
+            JSONObject json = new JSONObject(response.toString());
+            if (json.has("access_token")) {
+                token = json.getString("access_token");
+            } else {
+                System.err.println("Access token not found in response: " + response);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return token;
+    }
+}
