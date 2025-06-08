@@ -6,9 +6,21 @@ import java.util.Base64;
 import org.json.JSONObject;
 
 public class TokenGenerator {
+    private static String cachedToken = null;
+    private static long tokenGeneratedTime = 0; // milliseconds
 
-    public static String getAccessToken() {
-        String token = "";
+    // Token expiry time in milliseconds (5 minutes = 300,000 ms)
+    private static final long EXPIRY_DURATION = 5 * 60 * 1000;
+
+    public static synchronized String getAccessToken() {
+        long now = System.currentTimeMillis();
+        
+        // If token is valid, return cached
+        if (cachedToken != null && (now - tokenGeneratedTime) < EXPIRY_DURATION) {
+            return cachedToken;
+        }
+
+        // Else generate new token
         try {
             String urlStr = "https://cfed.csrv-dev.aws.transu.net:8443/as/token.oauth2";
             String clientId = "YOUR_CLIENT_ID";
@@ -34,23 +46,25 @@ public class TokenGenerator {
             InputStream is = conn.getResponseCode() == 200 ? conn.getInputStream() : conn.getErrorStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(is));
             StringBuilder response = new StringBuilder();
-            String inputLine;
-            while ((inputLine = reader.readLine()) != null) {
-                response.append(inputLine);
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
             }
             reader.close();
 
             JSONObject json = new JSONObject(response.toString());
             if (json.has("access_token")) {
-                token = json.getString("access_token");
+                cachedToken = json.getString("access_token");
+                tokenGeneratedTime = now;
+                return cachedToken;
             } else {
-                System.err.println("Access token not found in response: " + response);
+                System.err.println("Token not found. Response: " + response);
             }
 
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        return token;
+        return null;
     }
 }
