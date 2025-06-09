@@ -1,0 +1,65 @@
+public class TokenGenerator {
+    private static String cachedToken = null;
+    private static long tokenGeneratedTime = 0;
+    private static final long EXPIRY_DURATION = 5 * 60 * 1000; // 5 minutes
+
+    public static synchronized String getAccessToken() {
+        long now = System.currentTimeMillis();
+
+        if (cachedToken != null && (now - tokenGeneratedTime) < EXPIRY_DURATION) {
+            return cachedToken;
+        }
+
+        try {
+            // Step 1: Set values
+            String urlStr = "https://cfed.csrv-dev.aws.transu.net:8443/as/token.oauth2";
+            String clientId = "126A5CEC32918B1B3D618C7FF066FBEE6100D7FEAC78001758E3D1B6A3127483";
+            String clientSecret = "Testing11@12";
+            String scope = "SCCRPF TVATROL";
+
+            // Step 2: Prepare connection
+            URL url = new URL(urlStr);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+            // Step 3: Basic Auth header
+            String auth = clientId + ":" + clientSecret;
+            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
+            conn.setRequestProperty("Authorization", "Basic " + encodedAuth);
+
+            // Step 4: Body
+            String body = "grant_type=client_credentials&scope=" + URLEncoder.encode(scope, "UTF-8");
+            OutputStream os = conn.getOutputStream();
+            os.write(body.getBytes());
+            os.flush();
+            os.close();
+
+            // Step 5: Read response
+            InputStream is = conn.getResponseCode() == 200 ? conn.getInputStream() : conn.getErrorStream();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            reader.close();
+
+            // Step 6: Extract token from JSON
+            JSONObject json = new JSONObject(response.toString());
+            if (json.has("access_token")) {
+                cachedToken = json.getString("access_token");
+                tokenGeneratedTime = now;
+                return cachedToken;
+            } else {
+                System.err.println("Token not found. Response: " + response);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+}
