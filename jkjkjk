@@ -12,10 +12,7 @@ public class TokenGenerator {
 
         try {
             // Step 1: Set values
-            String urlStr = "https://cfed.csrv-dev.aws.transu.net:8443/as/token.oauth2";
-            String clientId = "126A5CEC32918B1B3D618C7FF066FBEE6100D7FEAC78001758E3D1B6A3127483";
-            String clientSecret = "Testing11@12";
-            String scope = "SCCRPF TVATROL";
+      
 
             // Step 2: Prepare connection
             URL url = new URL(urlStr);
