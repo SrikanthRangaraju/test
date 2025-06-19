@@ -1,0 +1,217 @@
+package api;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.*;
+
+public class ApiTestHelper {
+
+    private List<String> cpfList = new ArrayList<>();
+    private List<Map<String, String>> results = new ArrayList<>();
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    public void readCpfFile(String fileName) {
+        try {
+            List<String> lines = Files.readAllLines(Paths.get("src/test/resources/" + fileName));
+            cpfList.addAll(lines);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read CPF file", e);
+        }
+    }
+
+    private String getAccessToken() throws IOException {
+        URL url = new URL("https://");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        String body = "grant_type=client_credentials&client_id=&client_secret=";
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(body.getBytes());
+        }
+        try (InputStream is = conn.getInputStream()) {
+            JsonNode jsonNode = mapper.readTree(is);
+            return jsonNode.get("access_token").asText();
+        }
+    }
+
+    public void callApiForEachCpf() {
+        for (String cpf : cpfList) {
+            try {
+                String token = getAccessToken();
+                callEndpointForCpf(cpf, token);
+            } catch (Exception e) {
+                System.err.println("Error processing CPF " + cpf + ": " + e.getMessage());
+            }
+        }
+    }
+
+    private void callEndpointForCpf(String cpf, String token) throws IOException {
+        String url = "https://api-stg.transunion.com.br/bureau/credit-profile/v1/solution/inquiry";
+
+        String requestBody = }";
+
+        CloseableHttpClient client = HttpClients.createDefault();
+        HttpPost post = new HttpPost(url);
+        post.setHeader("Authorization", "Bearer " + token);
+        post.setHeader("Content-Type", "application/json");
+        post.setEntity(new StringEntity(requestBody, ContentType.APPLICATION_JSON));
+
+        String response = new String(client.execute(post).getEntity().getContent().readAllBytes());
+        parseResponse(cpf, response);
+        client.close();
+    }
+
+    private void parseResponse(String cpf, String jsonResponse) {
+        try {
+            JsonNode root = mapper.readTree(jsonResponse);
+            JsonNode traits = root.path("").path("").path("");
+
+            Map<String, String> result = new LinkedHashMap<>();
+            //
+
+            if (traits.isObject()) {
+                Iterator<String> fields = traits.fieldNames();
+                while (fields.hasNext()) {
+                    String key = fields.next();
+                    String value = traits.get(key).asText();
+                    result.put(key, value);
+                }
+            }
+
+            results.add(result);
+        } catch (Exception e) {
+            System.err.println("Failed to parse JSON for : " + //);
+        }
+    }
+
+    public void writeOutputToFile(String outputFileName) {
+        try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("src/test/resources/" + outputFileName));
+             CSVPrinter printer = new CSVPrinter(writer, CSVFormat.DEFAULT)) {
+
+            if (!results.isEmpty()) {
+                Set<String> headers = results.get(0).keySet();
+                printer.printRecord(headers);
+
+                for (Map<String, String> record : results) {
+                    List<String> row = new ArrayList<>();
+                    for (String header : headers) {
+                        row.add(record.getOrDefault(header, ""));
+                    }
+                    printer.printRecord(row);
+                }
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write CSV output", e);
+        }
+    }
+}
+-----------------
+package features;
+
+import api.ApiTestHelper;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
+
+public class CPFAPISteps {
+
+    ApiTestHelper helper = new ApiTestHelper();
+
+    @Given("the list of CPF IDs from {string}")
+    public void readCpfFile(String fileName) {
+        helper.readCpfFile(fileName);
+    }
+
+    @When("I call the API for each CPF ID")
+    public void callApi() {
+        helper.callApiForEachCpf();
+    }
+
+    @Then("I extract  and write them to {string}")
+    public void writeOutput(String outputFileName) {
+        helper.writeOutputToFile(outputFileName);
+    }
+}
+
+---------------------------
+Feature: Extract  for CPF IDs
+
+  Scenario: Get  for all CPF IDs
+    Given the list of CPF IDs from "cpfids.csv"
+    When I call the API for each CPF ID
+    Then I extract  and write them to "output.csv"
+	----------------------
+	
+	<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>SerenityAPITest</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <properties>
+        <serenity.version>3.6.12</serenity.version>
+        <serenity.maven.version>3.6.12</serenity.maven.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <java.version>11</java.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>net.serenity-bdd</groupId>
+            <artifactId>serenity-core</artifactId>
+            <version>${serenity.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.serenity-bdd</groupId>
+            <artifactId>serenity-cucumber6</artifactId>
+            <version>${serenity.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>5.1.3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.13.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.9.0</version>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>net.serenity-bdd.maven.plugins</groupId>
+                <artifactId>serenity-maven-plugin</artifactId>
+                <version>${serenity.maven.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>aggregate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
