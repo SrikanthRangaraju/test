@@ -1,0 +1,45 @@
+My Req is as follows :
+I have one csv file lets say its is actualoutput.csv
+and I have one more csv file is expecctedout.csv
+Based on the SSNID in each of the files , we need to compare other columns and publish the stats if it is matching or not matching
+if All the columns are 100 % matching then the test case is passed
+if not 100 % matching any of the column is less than 100 % then test case failed
+and after failed write the complete Difference file in the a folder called by name "Diff" folder and write the difference file like
+SSNID,acutualoutput_Column1_Value,expectedoutout_Column1,_Value, Difference
+123,2,3,1
+Like that for all the columns in the actualoutput file
+Please note: SSNID's that are in the actualoutputfile are not in sorted order ,case insentivie in cthe columns and the SSNID are are subset of the expectedoutput file. Similary expectedoutput file SSNID may be having more number of columns and more number of rows/SSNID's and they are not in a sorted order and also columns are in case in senssitive.
+Most of the case SSNIDS in the actualfile may exists in expectedout file but in some case some SSNIDS may not exists in expectedoutput file.
+So grab the common SSNIDS from these 2 files and Common Columns from these 2 files
+Compare these files and if 100 % match then pass the test case
+if not 100 % match then , fail the test case in the Fetaure file and write the difference in the diff folder
+Where in the Diff folder show the Summary details like this for an exmplae DiffSummary.txt
+Total Number of SSNIDS compared (Or common SSNIDS are :)::Presnet the number
+Number of Common columns compared are :
+100% matching Columns are - Column1, Column 3, like that
+99% matching Columns are --- Column 5, Column 8 like that so on
+90-98 % matching columns are -- Columns 10, Columns 12 and so one
+80-89 % matching columns are Columns 15, Column 18 and so on like that
+70-79 % matching colums are - Columns 23, Columns 27 and so on
+Less than 69 % Columns are - rest of the all columns
+
+and Write the complete Difference across all the columsn and SSNIDS in a seperate file by name as completeDiff.csv file for all the SSN Ids ths are not matching in Diff folder.
+example is for completeDiff.csv file
+ok I need like this then
+Detailed Drilldown: Only the Differences
+For a truly detailed view, create a long-form file (not wide!) where each row is a single mismatch:
+
+Columns: SSNID, ColumnName, ActualValue, ExpectedValue, Difference
+
+Example: completeDiff_long.csv
+
+text
+SSNID,Column,ActualValue,ExpectedValue,Difference
+123,salary,45000,46000,1000
+101,status,Inactive,Active,DIFFERENT
+...
+So in the diff folder i have 2 files one is diffSummary.txt and another file is completeDiff_long.csv
+
+Can u please provide me the COMPLETE code starting to the last with the latest updated code for the CompleDiff_long csv changes including ok
+
+In case if the scenario in feature file fails in the feature file when its not matching fail the test case and show the details that are there in the DiffSummary.txt in serenity Index.html .
